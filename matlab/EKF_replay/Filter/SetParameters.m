@@ -42,11 +42,21 @@ param.fusion.rngValidMin = 0.05; % range measurements wil be constrained to be  
 param.fusion.rngValidMax = 5.0; % ignore range measurements larger than this (m)
 param.fusion.rngTimeout = 2.0; % optical flow measurements will not be used if more than this time since valid range finder data was received (sec)
 
-%% Visual odometry body frame velocity measurement fusion
+%% Visual odometry measurement fusion
+param.control.visoMethod = 'position'; % selects fusion method used for visual odometry from etiher 'velocity' or 'position'
+
+% control of velocity method
 param.fusion.bodyVelTimeDelay = 0.01; % Optical flow sensor time delay relative to IMU (sec)
 param.fusion.bodyVelErrorMin = 0.1; % Observation noise 1SD for the odometry sensor at the highest quality value (m/sec)
 param.fusion.bodyVelErrorMax = 0.9; % Observation noise 1SD for the odometry sensor at the lowest quality value (m/sec)
 param.fusion.bodyVelGate = 5.0; % Size of the optical flow rate innovation consistency check gate in SD
+
+% control of delta position method
+param.fusion.bodyPosTimeDelay = 0.01; % Optical flow sensor time delay relative to IMU (sec)
+param.fusion.bodyPosGate = 5.0; % Size of the optical flow rate innovation consistency check gate in SD
+param.fusion.visoPosX = 0.3; % X body frame position of the vision sensor (m)
+param.fusion.visoPosY = 0.0; % Y body frame position of the vision sensor (m)
+param.fusion.visoPosZ = 0.0; % Z body frame position of the vision sensor (m)
 
 %% State prediction error growth
 param.prediction.magPnoiseNED = 1e-3; % Earth magnetic field 1SD rate of change. (gauss/sec)

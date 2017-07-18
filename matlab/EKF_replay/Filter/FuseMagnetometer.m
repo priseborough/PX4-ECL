@@ -15,17 +15,17 @@ q1 = states(2);
 q2 = states(3);
 q3 = states(4);
 
-magXbias = states(20);
-magYbias = states(21);
-magZbias = states(22);
+magXbias = states(23);
+magYbias = states(24);
+magZbias = states(25);
 
-magN = states(17);
-magE = states(18);
-magD = states(19);
+magN = states(20);
+magE = states(21);
+magD = states(22);
 
 innovation = zeros(1,3);
 varInnov = zeros(1,3);
-H = zeros(3,24);
+H = zeros(3,27);
 
 % Calculate the predicted magnetometer measurement
 Tbn = Quat2Tbn(states(1:4));
@@ -76,7 +76,7 @@ for obsIndex = 1:3
     P = 0.5*(P + transpose(P));
     
     % ensure diagonals are positive
-    for i=1:24
+    for i=1:27
         if P(i,i) < 0
             P(i,i) = 0;
         end

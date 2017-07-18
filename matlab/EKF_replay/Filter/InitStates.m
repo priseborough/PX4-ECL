@@ -4,7 +4,7 @@ function [states, imu_start_index] = InitStates(param,imu_data,gps_data,mag_data
 deg2rad = pi/180;
 
 % initialise the state vector and quaternion
-states = zeros(24,1);
+states = zeros(27,1);
 quat = [1;0;0;0];
 
 if (param.control.waitForGps == 1)

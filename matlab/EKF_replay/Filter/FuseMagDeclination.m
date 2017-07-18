@@ -6,8 +6,8 @@ function [...
     P, ... % predicted covariance
     measDec) % magnetic field declination - azimuth angle measured from true north (rad)
 
-magN = states(17);
-magE = states(18);
+magN = states(20);
+magE = states(21);
 
 R_MAG = 0.5^2;
 
@@ -38,7 +38,7 @@ P = P - Kfusion*H*P;
 P = 0.5*(P + transpose(P));
 
 % ensure diagonals are positive
-for i=1:24
+for i=1:27
     if P(i,i) < 0
         P(i,i) = 0;
     end

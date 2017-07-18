@@ -10,7 +10,7 @@ function [...
     gateSize, ... % Size of the innovation consistency check gate (std-dev)
     R_OBS) % position observation variance (m)^2
 
-H = zeros(1,24);
+H = zeros(1,27);
 
 % position states start at index 8
 stateIndex = 10;
@@ -47,7 +47,7 @@ P = P - K*H*P;
 P = 0.5*(P + transpose(P));
 
 % ensure diagonals are positive
-for i=1:24
+for i=1:27
     if P(i,i) < 0
         P(i,i) = 0;
     end

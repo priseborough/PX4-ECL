@@ -3,24 +3,24 @@ function [...
     P, ... % state covariance matrix after fusion of corrections
     innovation,... % NE position innovations (m)
     varInnov] ... % NE position innovation variance (m^2)
-    = FusePosition( ...
+    = FuseBodyPos( ...
     states, ... % predicted states from the INS
     P, ... % predicted covariance
-    measPos, ... % NE position measurements (m)
+    measDeltaPos, ... % XYZ delta position measurements (m)
     gateSize, ... % Size of the innovation consistency check gate (std-dev)
     R_OBS) % position observation variance (m)^2
 
-innovation = zeros(1,2);
-varInnov = zeros(1,2);
-H = zeros(2,27);
+innovation = zeros(1,3);
+varInnov = zeros(1,3);
+H = zeros(3,27);
 
-for obsIndex = 1:2
+for obsIndex = 1:3
     
-    % velocity states start at index 8
-    stateIndex = 7 + obsIndex;
+    % delta position states start at index 17
+    stateIndex = 16 + obsIndex;
 
     % Calculate the velocity measurement innovation
-    innovation(obsIndex) = states(stateIndex) - measPos(obsIndex);
+    innovation(obsIndex) = states(stateIndex) - measDeltaPos(obsIndex);
     
     % Calculate the observation Jacobian
     H(obsIndex,stateIndex) = 1;
@@ -30,7 +30,7 @@ for obsIndex = 1:2
 end
 
 % Apply an innovation consistency check
-for obsIndex = 1:2
+for obsIndex = 1:3
     
     if (innovation(obsIndex)^2 / (gateSize^2 * varInnov(obsIndex))) > 1.0
         return;
@@ -39,7 +39,7 @@ for obsIndex = 1:2
 end
 
 % Calculate Kalman gains and update states and covariances
-for obsIndex = 1:2
+for obsIndex = 1:3
     
     % Calculate the Kalman gains
     K = (P*transpose(H(obsIndex,:)))/varInnov(obsIndex);

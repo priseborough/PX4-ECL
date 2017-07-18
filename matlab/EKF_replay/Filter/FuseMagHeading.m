@@ -62,7 +62,7 @@ P = P - Kfusion*H*P;
 P = 0.5*(P + transpose(P));
 
 % ensure diagonals are positive
-for i=1:24
+for i=1:27
     if P(i,i) < 0
         P(i,i) = 0;
     end

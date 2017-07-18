@@ -217,7 +217,7 @@ if (output.magFuseMethod <= 1)
     set(h,'PaperPosition', [0 0 1 1]);
     
     subplot(3,1,1);
-    plot(output.time_lapsed',[output.mag_XYZ(:,1),output.mag_XYZ(:,1)+2*sqrt(output.state_variances(:,20)),output.mag_XYZ(:,1)-2*sqrt(output.state_variances(:,20))]);
+    plot(output.time_lapsed',[output.mag_XYZ(:,1),output.mag_XYZ(:,1)+2*sqrt(output.state_variances(:,23)),output.mag_XYZ(:,1)-2*sqrt(output.state_variances(:,23))]);
     grid on;
     titleText=strcat({'Magnetometer Bias Estimates'},runIdentifier);
     title(titleText);
@@ -226,14 +226,14 @@ if (output.magFuseMethod <= 1)
     legend('estimate','upper 95% bound','lower 95% bound');
     
     subplot(3,1,2);
-    plot(output.time_lapsed',[output.mag_XYZ(:,2),output.mag_XYZ(:,2)+2*sqrt(output.state_variances(:,21)),output.mag_XYZ(:,2)-2*sqrt(output.state_variances(:,21))]);
+    plot(output.time_lapsed',[output.mag_XYZ(:,2),output.mag_XYZ(:,2)+2*sqrt(output.state_variances(:,24)),output.mag_XYZ(:,2)-2*sqrt(output.state_variances(:,24))]);
     grid on;
     ylabel('Y bias (gauss)');
     xlabel('time (sec)');
     legend('estimate','upper 95% bound','lower 95% bound');
     
     subplot(3,1,3);
-    plot(output.time_lapsed',[output.mag_XYZ(:,3),output.mag_XYZ(:,3)+2*sqrt(output.state_variances(:,22)),output.mag_XYZ(:,3)-2*sqrt(output.state_variances(:,22))]);
+    plot(output.time_lapsed',[output.mag_XYZ(:,3),output.mag_XYZ(:,3)+2*sqrt(output.state_variances(:,25)),output.mag_XYZ(:,3)-2*sqrt(output.state_variances(:,25))]);
     grid on;
     ylabel('Z bias (gauss)');
     xlabel('time (sec)');
@@ -255,7 +255,7 @@ if (output.magFuseMethod <= 1)
     margin = 0.1;
     
     subplot(4,1,1);
-    plot(output.time_lapsed',[output.mag_NED(:,1),output.mag_NED(:,1)+2*sqrt(output.state_variances(:,17)),output.mag_NED(:,1)-2*sqrt(output.state_variances(:,17))]);
+    plot(output.time_lapsed',[output.mag_NED(:,1),output.mag_NED(:,1)+2*sqrt(output.state_variances(:,20)),output.mag_NED(:,1)-2*sqrt(output.state_variances(:,20))]);
     minVal = min(output.mag_NED(:,1))-margin;
     maxVal = max(output.mag_NED(:,1))+margin;
     ylim([minVal maxVal]);
@@ -267,7 +267,7 @@ if (output.magFuseMethod <= 1)
     legend('estimate','upper 95% bound','lower 95% bound');
     
     subplot(4,1,2);
-    plot(output.time_lapsed',[output.mag_NED(:,2),output.mag_NED(:,2)+2*sqrt(output.state_variances(:,18)),output.mag_NED(:,2)-2*sqrt(output.state_variances(:,18))]);
+    plot(output.time_lapsed',[output.mag_NED(:,2),output.mag_NED(:,2)+2*sqrt(output.state_variances(:,21)),output.mag_NED(:,2)-2*sqrt(output.state_variances(:,21))]);
     minVal = min(output.mag_NED(:,2))-margin;
     maxVal = max(output.mag_NED(:,2))+margin;
     ylim([minVal maxVal]);
@@ -277,7 +277,7 @@ if (output.magFuseMethod <= 1)
     legend('estimate','upper 95% bound','lower 95% bound');
     
     subplot(4,1,3);
-    plot(output.time_lapsed',[output.mag_NED(:,3),output.mag_NED(:,3)+2*sqrt(output.state_variances(:,19)),output.mag_NED(:,3)-2*sqrt(output.state_variances(:,19))]);
+    plot(output.time_lapsed',[output.mag_NED(:,3),output.mag_NED(:,3)+2*sqrt(output.state_variances(:,22)),output.mag_NED(:,3)-2*sqrt(output.state_variances(:,22))]);
     grid on;
     minVal = min(output.mag_NED(:,3))-margin;
     maxVal = max(output.mag_NED(:,3))+margin;
@@ -485,7 +485,7 @@ if isfield(output.innovations,'bodyVelInnov')
     subplot(3,1,1);
     plot(output.innovations.bodyVel_time_lapsed,[output.innovations.bodyVelInnov(:,1)';sqrt(output.innovations.bodyVelInnovVar(:,1))';-sqrt(output.innovations.bodyVelInnovVar(:,1))']);
     grid on;
-    title(strcat({'ZED Camera Innovations and Variances'},runIdentifier));
+    title(strcat({'ZED Camera Innovations and Variances - Velocity Method'},runIdentifier));
     ylabel('X (m/sec)');
     xlabel('time (sec)');
     legend('innovation','innovation variance sqrt','innovation variance sqrt');
@@ -504,8 +504,46 @@ if isfield(output.innovations,'bodyVelInnov')
     xlabel('time (sec)');
     legend('innovation','innovation variance sqrt','innovation variance sqrt');
     
-    fileName='zed_camera_fusion.png';
+    fileName='zed_camera_velocity_fusion.png';
     fullFileName = fullfile(folder, fileName);
     saveas(h,fullFileName);
     
 end
+
+%% plot ZED camera innovations
+if isfield(output.innovations,'bodyPosInnov')
+    
+    figure('Units','Pixels','Position',plotDimensions,'PaperOrientation','portrait');
+    h=gcf;
+    set(h,'PaperOrientation','portrait');
+    set(h,'PaperUnits','normalized');
+    set(h,'PaperPosition', [0 0 1 1]);
+    
+    subplot(3,1,1);
+    plot(output.innovations.bodyPos_time_lapsed,[output.innovations.bodyPosInnov(:,1)';sqrt(output.innovations.bodyPosInnovVar(:,1))';-sqrt(output.innovations.bodyPosInnovVar(:,1))']);
+    grid on;
+    title(strcat({'ZED Camera Innovations and Variances - Delta Position Method'},runIdentifier));
+    ylabel('X (m)');
+    xlabel('time (sec)');
+    legend('innovation','innovation variance sqrt','innovation variance sqrt');
+    
+    subplot(3,1,2);
+    plot(output.innovations.bodyPos_time_lapsed,[output.innovations.bodyPosInnov(:,2)';sqrt(output.innovations.bodyPosInnovVar(:,2))';-sqrt(output.innovations.bodyPosInnovVar(:,2))']);
+    grid on;
+    ylabel('Y (m)');
+    xlabel('time (sec)');
+    legend('innovation','innovation variance sqrt','innovation variance sqrt');
+    
+    subplot(3,1,3);
+    plot(output.innovations.bodyPos_time_lapsed,[output.innovations.bodyPosInnov(:,3)';sqrt(output.innovations.bodyPosInnovVar(:,3))';-sqrt(output.innovations.bodyPosInnovVar(:,3))']);
+    grid on;
+    ylabel('Z (m)');
+    xlabel('time (sec)');
+    legend('innovation','innovation variance sqrt','innovation variance sqrt');
+    
+    fileName='zed_camera_delta_position_fusion.png';
+    fullFileName = fullfile(folder, fileName);
+    saveas(h,fullFileName);
+    
+end
+

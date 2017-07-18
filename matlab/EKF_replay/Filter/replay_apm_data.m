@@ -29,15 +29,16 @@ end
 % load default parameters
 run('SetParameters.m');
 
-% run the filter replay 
+%% run the filter replay 
 output = RunFilter(param,imu_data,mag_data,baro_data,gps_data,rng_data,flow_data,viso_data);
 
-% generate and save output plots
+%% generate and save output plots
 runIdentifier = ' : APM data replay ';
 folder = strcat('../OutputPlots/APM');
 PlotData(output,folder,runIdentifier);
+PlotTrajectory(output,gps_data,folder);
 
-% save output data
+%% save output data
 folder = '../OutputData/APM';
 fileName = '../OutputData/APM/ekf_replay_output.mat';
 if ~exist(folder,'dir')

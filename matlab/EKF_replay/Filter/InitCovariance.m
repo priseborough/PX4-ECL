@@ -30,7 +30,10 @@ Sigma_magXYZ = [param.alignment.magErrXYZ;param.alignment.magErrXYZ;param.alignm
 % Define wind velocity state errors
 Sigma_wind = param.alignment.windErrNE * [1;1];
 
+% define delta position state errors
+Sigma_dPosBody = zeros(3,1);
+
 % Convert to variances and write to covariance matrix diagonals
-covariance = diag([Sigma_quat;Sigma_velocity;Sigma_position;Sigma_dAngBias;Sigma_dVelBias;Sigma_magNED;Sigma_magXYZ;Sigma_wind].^2);
+covariance = diag([Sigma_quat;Sigma_velocity;Sigma_position;Sigma_dAngBias;Sigma_dVelBias;Sigma_dPosBody;Sigma_magNED;Sigma_magXYZ;Sigma_wind].^2);
 end
 

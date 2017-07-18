@@ -115,7 +115,7 @@ for index = indexStart:indexStop
     imuIndex = imuIndex+1;
     
     % predict states
-    [states, delAngCorrected, delVelCorrected]  = PredictStates(states,delta_angle,delta_velocity,imu_data.accel_dt(imuIndex),gravity,gps_data.refLLH(1,1)*deg2rad);
+    [states, delAngCorrected, delVelCorrected]  = PredictStates(states,delta_angle,delta_velocity,imu_data.accel_dt(imuIndex),gravity,param,gps_data.refLLH(1,1)*deg2rad);
     
     % constrain states
     [states]  = ConstrainStates(states,dt_imu_avg);
@@ -139,12 +139,12 @@ for index = indexStart:indexStop
         output.position_NED(covIndex,:) = states(8:10)';
         output.gyro_bias(covIndex,:) = states(11:13)';
         output.accel_bias(covIndex,:) = states(14:16)';
-        output.mag_NED(covIndex,:) = states(17:19);
-        output.mag_XYZ(covIndex,:) = states(20:22);
-        output.wind_NE(covIndex,:) = states(23:24);
+        output.mag_NED(covIndex,:) = states(20:22);
+        output.mag_XYZ(covIndex,:) = states(23:25);
+        output.wind_NE(covIndex,:) = states(26:27);
         
         % output covariance data
-        for i=1:24
+        for i=1:27
             output.state_variances(covIndex,i) = covariance(i,i);
         end
         
@@ -313,25 +313,76 @@ for index = indexStart:indexStop
             % Fuse ZED camera body frame odmometry data that has fallen behind the fusion time horizon
             latest_viso_index = find((viso_data.time_us - 1e6 * param.fusion.bodyVelTimeDelay) < imu_data.time_us(imuIndex), 1, 'last' );
             if (latest_viso_index > last_viso_index)
-                last_viso_index = latest_viso_index;
-                viso_fuse_index = viso_fuse_index + 1;
-                last_drift_constrain_time = local_time;
-                
-                % convert delta positon measurements to velocity
-                relVelBodyMea = [viso_data.dPosX(latest_viso_index);viso_data.dPosY(latest_viso_index);viso_data.dPosZ(latest_viso_index)]./viso_data.dt(latest_viso_index);
-                
-                % convert quality metric to equivalent observation error
-                % (this is a guess)
-                quality = viso_data.qual(latest_viso_index);
-                bodyVelError = param.fusion.bodyVelErrorMin * quality + param.fusion.bodyVelErrorMax * (1 - quality);
-                
-                % fuse measurements
-                [states,covariance,bodyVelInnov,bodyVelInnovVar] = FuseBodyVel(states, covariance, relVelBodyMea, bodyVelError^2, param.fusion.bodyVelGate);
-                
-                % data logging
-                output.innovations.bodyVel_time_lapsed(viso_fuse_index) = local_time;
-                output.innovations.bodyVelInnov(viso_fuse_index,:) = bodyVelInnov;
-                output.innovations.bodyVelInnovVar(viso_fuse_index,:) = bodyVelInnovVar;
+                if (strcmp(param.control.visoMethod,'velocity'))
+                    last_viso_index = latest_viso_index;
+                    viso_fuse_index = viso_fuse_index + 1;
+                    last_drift_constrain_time = local_time;
+                    
+                    % convert delta positon measurements to velocity
+                    relVelBodyMea = [viso_data.dPosX(latest_viso_index);viso_data.dPosY(latest_viso_index);viso_data.dPosZ(latest_viso_index)]./viso_data.dt(latest_viso_index);
+                    
+                    % convert quality metric to equivalent observation error
+                    % (this is a guess)
+                    quality = viso_data.qual(latest_viso_index);
+                    bodyVelError = param.fusion.bodyVelErrorMin * quality + param.fusion.bodyVelErrorMax * (1 - quality);
+                    
+                    % fuse measurements
+                    [states,covariance,bodyVelInnov,bodyVelInnovVar] = FuseBodyVel(states, covariance, relVelBodyMea, bodyVelError^2, param.fusion.bodyVelGate);
+                    
+                    % data logging
+                    output.innovations.bodyVel_time_lapsed(viso_fuse_index) = local_time;
+                    output.innovations.bodyVelInnov(viso_fuse_index,:) = bodyVelInnov;
+                    output.innovations.bodyVelInnovVar(viso_fuse_index,:) = bodyVelInnovVar;
+                    
+                elseif (strcmp(param.control.visoMethod,'position'))
+                    if (last_viso_index == 0)
+                        last_viso_index = latest_viso_index;
+                        states(17:19) = zeros(3,1);
+                        % zero rows and columns for delta position
+                        % uncertainty
+                        for i=17:19
+                            for j=1:27
+                                covariance(i,j)=0;
+                                covariance(j,i)=0;
+                            end
+                        end
+
+                    else
+                        last_viso_index = latest_viso_index;
+                        viso_fuse_index = viso_fuse_index + 1;
+                        last_drift_constrain_time = local_time;
+                        
+                        % convert delta positon measurements to velocity
+                        deltaPosMea = [viso_data.dPosX(latest_viso_index);viso_data.dPosY(latest_viso_index);viso_data.dPosZ(latest_viso_index)];
+                        
+                        % convert quality metric to equivalent observation error
+                        % (this is a guess)
+                        quality = viso_data.qual(latest_viso_index);
+                        deltaPosError = viso_data.dt(latest_viso_index) * (param.fusion.bodyVelErrorMin * quality + param.fusion.bodyVelErrorMax * (1 - quality));
+                        
+                        % fuse measurements
+                        [states,covariance,bodyPosInnov,bodyPosInnovVar] = FuseBodyPos(states,covariance,deltaPosMea,param.fusion.gpsPosGate,deltaPosError^2);
+                        
+                        % by definition the delta position states start from zero at the start
+                        % of each observation cycle
+                        states(17:19) = zeros(3,1);
+                        
+                        % zero rows and columns for delta position
+                        % uncertainty
+                        for i=17:19
+                            for j=1:27
+                                covariance(i,j)=0;
+                                covariance(j,i)=0;
+                            end
+                        end
+    
+                        % data logging
+                        output.innovations.bodyPos_time_lapsed(viso_fuse_index) = local_time;
+                        output.innovations.bodyPosInnov(viso_fuse_index,:) = bodyPosInnov;
+                        output.innovations.bodyPosInnovVar(viso_fuse_index,:) = bodyPosInnovVar;
+                    end
+                    
+                end
                 
             end
             

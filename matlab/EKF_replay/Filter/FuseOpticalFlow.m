@@ -22,7 +22,7 @@ vd = states(7);
 
 innovation = zeros(1,2);
 varInnov = zeros(1,2);
-H = zeros(2,24);
+H = zeros(2,27);
 
 % Calculate predicted angular LOS rates about body frame axes
 Tbn = Quat2Tbn(states(1:4));
@@ -77,7 +77,7 @@ for obsIndex = 1:2
     P = 0.5*(P + transpose(P));
     
     % ensure diagonals are positive
-    for i=1:24
+    for i=1:27
         if P(i,i) < 0
             P(i,i) = 0;
         end
