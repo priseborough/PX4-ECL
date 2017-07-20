@@ -115,7 +115,7 @@ for index = indexStart:indexStop
     imuIndex = imuIndex+1;
     
     % predict states
-    [states, delAngCorrected, delVelCorrected]  = PredictStates(states,delta_angle,delta_velocity,imu_data.accel_dt(imuIndex),gravity,param,gps_data.refLLH(1,1)*deg2rad);
+    [states, delAngCorrected, delVelCorrected]  = PredictStates(states,delta_angle,delta_velocity,imu_data.accel_dt(imuIndex),gravity,gps_data.refLLH(1,1)*deg2rad);
     
     % constrain states
     [states]  = ConstrainStates(states,dt_imu_avg);
@@ -338,6 +338,7 @@ for index = indexStart:indexStop
                     if (last_viso_index == 0)
                         last_viso_index = latest_viso_index;
                         states(17:19) = zeros(3,1);
+                        quat_at_last_meas = states(1:4);
                         % zero rows and columns for delta position
                         % uncertainty
                         for i=17:19
@@ -352,9 +353,11 @@ for index = indexStart:indexStop
                         viso_fuse_index = viso_fuse_index + 1;
                         last_drift_constrain_time = local_time;
                         
-                        % convert delta positon measurements to velocity
+                        % correct measurement vector for sensor offset in body frame
                         deltaPosMea = [viso_data.dPosX(latest_viso_index);viso_data.dPosY(latest_viso_index);viso_data.dPosZ(latest_viso_index)];
-                        
+                        rotVecBodyFrame = QuatToDeltaAngle(QuatDivide(states(1:4),quat_at_last_meas));
+                        deltaPosMea = deltaPosMea - cross(rotVecBodyFrame,[param.fusion.visoPosX;param.fusion.visoPosY;param.fusion.visoPosZ]);
+                         
                         % convert quality metric to equivalent observation error
                         % (this is a guess)
                         quality = viso_data.qual(latest_viso_index);
@@ -363,9 +366,10 @@ for index = indexStart:indexStop
                         % fuse measurements
                         [states,covariance,bodyPosInnov,bodyPosInnovVar] = FuseBodyPos(states,covariance,deltaPosMea,param.fusion.gpsPosGate,deltaPosError^2);
                         
-                        % by definition the delta position states start from zero at the start
+                        % by definition the delta position and angle states start from zero at the start
                         % of each observation cycle
                         states(17:19) = zeros(3,1);
+                        quat_at_last_meas = states(1:4);
                         
                         % zero rows and columns for delta position
                         % uncertainty

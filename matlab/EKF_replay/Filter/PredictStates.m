@@ -4,7 +4,6 @@ function [states, correctedDelAng, correctedDelVel]  = PredictStates( ...
     delVel, ... % IMU delta velocity measurements 3x1 (m/s)
     dt, ... % accumulation time of the IMU measurement (sec)
     gravity, ... % acceleration due to gravity (m/s/s)
-    param, ... % tuning parameters
     latitude) % WGS-84 latitude (rad)
 
 % define persistent variables for previous delta angle and velocity which
@@ -85,9 +84,6 @@ states(8:10) = states(8:10) + 0.5 * dt * (prevVel + states(5:7));
 % Calculate the average body frame velocity across the measurement interval
 % (assumes constant acceleration)
 bodyVelAvg = 0.5 * (transpose(Tbn_prev) * prevVel + transpose(Tbn) * states(5:7));
-
-% Correct for angular rotation which produces apparent velocity at the odometry sensor
-bodyVelAvg = bodyVelAvg + cross((correctedDelAng./dt),[param.fusion.visoPosX;param.fusion.visoPosY;param.fusion.visoPosZ]);
 
 % Integrate body frame velocities to get position increment measured by the sensor
 % These will be reset to zero after each odometry measurement
