@@ -63,7 +63,7 @@ syms BCXinv BCYinv real % inverse of ballistic coefficient for wind relative mov
 syms rho real % air density (kg/m^3)
 syms R_ACC real % variance of accelerometer measurements (m/s^2)^2
 syms Kaccx Kaccy real % derivative of X and Y body specific forces wrt componenent of true airspeed along each axis (1/s)
-
+syms ivx ivy 'real' % integrated X and Yvelocity along the horizontal in a body tangent frame
 %% define the state prediction equations
 
 % define the measured Delta angle and delta velocity vectors
@@ -124,12 +124,17 @@ magXnew = magX;
 magYnew = magY;
 magZnew = magZ;
 
+% state equations for position odometry in body frame
+vx = 
+pbf = [px;py;pz];
+pbfNew = pbf + transpose(Tbn) * [vn;ve;vd] * dt;
+
 % Define the state vector & number of states
-stateVector = [quat;vn;ve;vd;pn;pe;pd;dAngBias;dVelBias;magN;magE;magD;magX;magY;magZ;vwn;vwe];
+stateVector = [quat;vn;ve;vd;pn;pe;pd;dAngBias;dVelBias;magN;magE;magD;magX;magY;magZ;vwn;vwe;pbf];
 nStates=numel(stateVector);
 
 % Define vector of process equations
-newStateVector = [quatNew;vNew;pNew;dAngBiasNew;dVelBiasNew;magNnew;magEnew;magDnew;magXnew;magYnew;magZnew;vwnNew;vweNew];
+newStateVector = [quatNew;vNew;pNew;dAngBiasNew;dVelBiasNew;magNnew;magEnew;magDnew;magXnew;magYnew;magZnew;vwnNew;vweNew;pbfNew];
 
 % derive the state transition matrix
 F = jacobian(newStateVector, stateVector);
