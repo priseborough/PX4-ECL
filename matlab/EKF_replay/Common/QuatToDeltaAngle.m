@@ -3,10 +3,17 @@
 function deltaAngle = QuatToDeltaAngle(quat)
 
 if (quat(1) >= 0.0)
-    scalar = -2.0;
+    delta = 2 * acos(quat(1));
+    x = quat(2) / sin(delta/2);
+    y = quat(3) / sin(delta/2);
+    z = quat(4) / sin(delta/2);
 else
-    scalar = 2.0;
+    delta = 2 * acos(-quat(1));
+    x = -quat(2) / sin(delta/2);
+    y = -quat(3) / sin(delta/2);
+    z = -quat(4) / sin(delta/2);
 end
-deltaAngle(1,1) = scalar * quat(2);
-deltaAngle(2,1) = scalar * quat(3);
-deltaAngle(3,1) = scalar * quat(4);
+
+xyz_norm = sqrt(x*x + y*y + z*z);
+deltaAngle = delta / xyz_norm * [x;y;z];
+
