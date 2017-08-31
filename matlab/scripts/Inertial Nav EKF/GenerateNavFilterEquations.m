@@ -20,6 +20,7 @@
 % Delta Velocity bias - m/s (X,Y,Z)
 % Earth Magnetic Field Vector - (North, East, Down)
 % Body Magnetic Field Vector - (X,Y,Z)
+% terrain vertical position - m
 % Wind Vector  - m/sec (North,East)
 
 % Observations:
@@ -63,6 +64,7 @@ syms BCXinv BCYinv real % inverse of ballistic coefficient for wind relative mov
 syms rho real % air density (kg/m^3)
 syms R_ACC real % variance of accelerometer measurements (m/s^2)^2
 syms Kaccx Kaccy real % derivative of X and Y body specific forces wrt componenent of true airspeed along each axis (1/s)
+syms ptd 'real' % vertical position fo the terrain in NED (m) 
 
 %% define the state prediction equations
 
@@ -106,6 +108,9 @@ vNew = [vn;ve;vd] + [0;0;gravity]*dt + Tbn*dVelTruth;
 % define the position update equations
 pNew = [pn;pe;pd] + [vn;ve;vd]*dt;
 
+% define the terrain offset update equation
+ptdNew = ptd;
+
 % define the IMU error update equations
 dAngBiasNew = dAngBias;
 dVelBiasNew = dVelBias;
@@ -125,11 +130,11 @@ magYnew = magY;
 magZnew = magZ;
 
 % Define the state vector & number of states
-stateVector = [quat;vn;ve;vd;pn;pe;pd;dAngBias;dVelBias;magN;magE;magD;magX;magY;magZ;vwn;vwe];
+stateVector = [quat;vn;ve;vd;pn;pe;pd;dAngBias;dVelBias;magN;magE;magD;magX;magY;magZ;ptdNew;vwn;vwe];
 nStates=numel(stateVector);
 
 % Define vector of process equations
-newStateVector = [quatNew;vNew;pNew;dAngBiasNew;dVelBiasNew;magNnew;magEnew;magDnew;magXnew;magYnew;magZnew;vwnNew;vweNew];
+newStateVector = [quatNew;vNew;pNew;dAngBiasNew;dVelBiasNew;magNnew;magEnew;magDnew;magXnew;magYnew;magZnew;ptdNew;vwnNew;vweNew];
 
 % derive the state transition matrix
 F = jacobian(newStateVector, stateVector);
@@ -228,9 +233,8 @@ reset(symengine);
 %% derive equations for sequential fusion of optical flow measurements
 load('StatePrediction.mat');
 
-% Range is defined as distance from camera focal point to object measured
-% along sensor Z axis
-syms range real;
+% range is defined as distance from camera focal point to centre of sensor fov
+range = (ptd - pd) / Tbn(3,3);
 
 % Define rotation matrix from body to sensor frame
 syms Tbs_a_x Tbs_a_y Tbs_a_z real;
