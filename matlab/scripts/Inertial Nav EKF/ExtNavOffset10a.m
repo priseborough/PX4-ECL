@@ -7,7 +7,7 @@
 % system navigation frame where the world frame distance units have an arbitrary
 % scale factor relative to SI units.
 
-% 14 state architecture.
+% 10 state architecture.
 
 % Author: Paul Riseborough
 
@@ -15,7 +15,6 @@
 
 % XYZ velocity in world frame (length/sec)
 % XYZ position in world frame (length)
-% quaternions decribing rotation from world frame to navigation frame
 % XYZ position of the workd frame origin in navigation frame (m)
 % Scale factor that converts from nav to word frame length units. 
 
@@ -25,6 +24,7 @@
 
 % Time varying parameters (control input):
 
+% quaternions decribing rotation from world frame to navigation frame
 % XYZ accceleration in navigation frame (m/s^2)
 
 clear all;
@@ -53,26 +53,23 @@ accel_nav = [acc_x_n;acc_y_n;acc_z_n];
 
 % rotate nav accel into word frame and integrate to get velocity and
 % position
-accel_world = Tnw * accel_nav * scale;
-vel_world = [vel_x_w;vel_y_w;vel_z_w];
-vel_world_new = vel_world + accel_world * dt;
-pos_world = [pos_x_w;pos_y_w;pos_z_w];
+vel_nav = [vel_x_n;vel_y_n;vel_z_n];
+vel_nav_new = vel_nav + accel_nav * dt;
+pos_nav = [pos_x_n;pos_y_n;pos_z_n];
 origin = [ogn_x;ogn_y;ogn_z];
-pos_world_new = pos_world + vel_world * dt - Tnw * origin * scale;
+pos_nav_new = pos_nav + vel_nav * dt;
 
 % static process models
-quat_new = quat;
 scale_new = scale;
 origin_new = origin;
 
-state_vec = [vel_world;pos_world;quat;origin;scale];
-state_vec_new = [vel_world_new;pos_world_new;quat_new;origin_new;scale_new];
+state_vec = [vel_nav;pos_nav;origin;scale];
+state_vec_new = [vel_nav_new;pos_nav_new;origin_new;scale_new];
 
 nStates=numel(state_vec);
 
 % derive the state transition matrix
 F = jacobian(state_vec_new, state_vec);
-[F,SF]=OptimiseAlgebra(F,'SF');
 
 % define a symbolic covariance matrix using strings to represent 
 % '_l_' to represent '( '
@@ -89,7 +86,6 @@ end
 % calculate the control influence matrix from nav frame accel input errors
 % to states
 G = jacobian(state_vec_new, accel_nav);
-[G,SG]=OptimiseAlgebra(G,'SG');
 
 % derive the state error matrix
 distMatrix = diag([acc_var acc_var acc_var]);
@@ -101,6 +97,33 @@ PP = F*P*transpose(F) + Q;
 
 % Collect common expressions to optimise processing
 [PP,SPP]=OptimiseAlgebra(PP,'SPP');
+
+%% observation model of position in world frame
+% correct for offset and scale factor
+pos_world = scale * (pos_nav - origin);
+
+% correct for world frame orientation
+pos_world = Tnw * pos_world;
+
+% calculate jacobians and Kalman gains for world frame position observation
+syms R_POS 'real' % position observation variance
+
+H_X = jacobian(pos_world(1),state_vec); % measurement Jacobian
+[H_X,SH_X]=OptimiseAlgebra(H_X,'SH_X'); % optimise processing
+K_X = (P*transpose(H_X))/(H_X*P*transpose(H_X) + R_POS);
+[K_X,SK_X]=OptimiseAlgebra(K_X,'SK_X'); % Kalman gain vector
+
+H_Y = jacobian(pos_world(2),state_vec); % measurement Jacobian
+[H_Y,SH_Y]=OptimiseAlgebra(H_Y,'SH_Y'); % optimise processing
+K_Y = (P*transpose(H_Y))/(H_Y*P*transpose(H_Y) + R_POS);
+[K_Y,SK_Y]=OptimiseAlgebra(K_Y,'SK_Y'); % Kalman gain vector
+
+H_Z = jacobian(pos_world(3),state_vec); % measurement Jacobian
+[H_Z,SH_Z]=OptimiseAlgebra(H_Z,'SH_Z'); % optimise processing
+K_Z = (P*transpose(H_Z))/(H_Z*P*transpose(H_Z) + R_POS);
+[K_Z,SK_Z]=OptimiseAlgebra(K_Z,'SK_Z'); % Kalman gain vector
+
+%% convert to C code
 
 fileName = strcat('SymbolicOutput',int2str(nStates),'.mat');
 save(fileName);
