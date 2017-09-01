@@ -7,7 +7,7 @@
 % system navigation frame where the world frame distance units have an arbitrary
 % scale factor relative to SI units.
 
-% 14 state architecture.
+% 10 state architecture.
 
 % Author: Paul Riseborough
 
@@ -15,9 +15,8 @@
 
 % XYZ velocity in world frame (length/sec)
 % XYZ position in world frame (length)
-% quaternions decribing rotation from world frame to navigation frame
 % XYZ position of the workd frame origin in navigation frame (m)
-% Scale factor that converts from nav to word frame length units. 
+% Scale factor that converts from nav to world frame length units. 
 
 % Observations:
 
@@ -25,6 +24,7 @@
 
 % Time varying parameters (control input):
 
+% quaternions decribing rotation from world frame to navigation frame
 % XYZ accceleration in navigation frame (m/s^2)
 
 clear all;
@@ -61,12 +61,11 @@ origin = [ogn_x;ogn_y;ogn_z];
 pos_world_new = pos_world + vel_world * dt - Tnw * origin * scale;
 
 % static process models
-quat_new = quat;
 scale_new = scale;
 origin_new = origin;
 
-state_vec = [vel_world;pos_world;quat;origin;scale];
-state_vec_new = [vel_world_new;pos_world_new;quat_new;origin_new;scale_new];
+state_vec = [vel_world;pos_world;origin;scale];
+state_vec_new = [vel_world_new;pos_world_new;origin_new;scale_new];
 
 nStates=numel(state_vec);
 

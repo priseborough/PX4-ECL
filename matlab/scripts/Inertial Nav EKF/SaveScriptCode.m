@@ -660,6 +660,144 @@ if exist('SH_ACCY','var')
     
 end
 
+%% Write equations for X axis world frame fusion
+if exist('SH_X','var')
+    
+    fprintf(fid,'\n');
+    fprintf(fid,'SH_X = zeros(%d,1);\n',numel(SH_X));
+    for rowIndex = 1:numel(SH_X)
+        string = char(SH_X(rowIndex,1));
+        fprintf(fid,'SH_X(%d) = %s;\n',rowIndex,string);
+    end
+    
+    [nRow,nCol] = size(H_X);
+    fprintf(fid,'\n');
+    fprintf(fid,'H_X = zeros(1,%d);\n',nCol);
+    for rowIndex = 1:nRow
+        for colIndex = 1:nCol
+            string = char(H_X(rowIndex,colIndex));
+            % don't write out a zero-assignment
+            if ~strcmpi(string,'0')
+                fprintf(fid,'H_X(1,%d) = %s;\n',colIndex,string);
+            end
+        end
+    end
+    fprintf(fid,'\n');
+    
+    fprintf(fid,'\n');
+    fprintf(fid,'SK_X = zeros(%d,1);\n',numel(SK_X));
+    for rowIndex = 1:numel(SK_X)
+        string = char(SK_X(rowIndex,1));
+        fprintf(fid,'SK_X(%d) = %s;\n',rowIndex,string);
+    end
+    fprintf(fid,'\n');
+    
+    [nRow,nCol] = size(K_X);
+    fprintf(fid,'\n');
+    fprintf(fid,'K_X = zeros(%d,1);\n',nRow,nCol);
+    for rowIndex = 1:nRow
+        string = char(K_X(rowIndex,1));
+        % don't write out a zero-assignment
+        if ~strcmpi(string,'0')
+            fprintf(fid,'K_X(%d) = %s;\n',rowIndex,string);
+        end
+    end
+    fprintf(fid,'\n');
+    
+end
+
+%% Write equations for Y axis world frame fusion
+if exist('SH_Y','var')
+    
+    fprintf(fid,'\n');
+    fprintf(fid,'SH_Y = zeros(%d,1);\n',numel(SH_Y));
+    for rowIndex = 1:numel(SH_Y)
+        string = char(SH_Y(rowIndex,1));
+        fprintf(fid,'SH_Y(%d) = %s;\n',rowIndex,string);
+    end
+    
+    [nRow,nCol] = size(H_Y);
+    fprintf(fid,'\n');
+    fprintf(fid,'H_Y = zeros(1,%d);\n',nCol);
+    for rowIndex = 1:nRow
+        for colIndex = 1:nCol
+            string = char(H_Y(rowIndex,colIndex));
+            % don't write out a zero-assignment
+            if ~strcmpi(string,'0')
+                fprintf(fid,'H_Y(1,%d) = %s;\n',colIndex,string);
+            end
+        end
+    end
+    fprintf(fid,'\n');
+    
+    fprintf(fid,'\n');
+    fprintf(fid,'SK_Y = zeros(%d,1);\n',numel(SK_Y));
+    for rowIndex = 1:numel(SK_Y)
+        string = char(SK_Y(rowIndex,1));
+        fprintf(fid,'SK_Y(%d) = %s;\n',rowIndex,string);
+    end
+    fprintf(fid,'\n');
+    
+    [nRow,nCol] = size(K_Y);
+    fprintf(fid,'\n');
+    fprintf(fid,'K_Y = zeros(%d,1);\n',nRow,nCol);
+    for rowIndex = 1:nRow
+        string = char(K_Y(rowIndex,1));
+        % don't write out a zero-assignment
+        if ~strcmpi(string,'0')
+            fprintf(fid,'K_Y(%d) = %s;\n',rowIndex,string);
+        end
+    end
+    fprintf(fid,'\n');
+    
+end
+
+%% Write equations for Z axis world frame fusion
+if exist('SH_Z','var')
+    
+    fprintf(fid,'\n');
+    fprintf(fid,'SH_Z = zeros(%d,1);\n',numel(SH_Z));
+    for rowIndex = 1:numel(SH_Z)
+        string = char(SH_Z(rowIndex,1));
+        fprintf(fid,'SH_Z(%d) = %s;\n',rowIndex,string);
+    end
+    
+    [nRow,nCol] = size(H_Z);
+    fprintf(fid,'\n');
+    fprintf(fid,'H_Z = zeros(1,%d);\n',nCol);
+    for rowIndex = 1:nRow
+        for colIndex = 1:nCol
+            string = char(H_Z(rowIndex,colIndex));
+            % don't write out a zero-assignment
+            if ~strcmpi(string,'0')
+                fprintf(fid,'H_Z(1,%d) = %s;\n',colIndex,string);
+            end
+        end
+    end
+    fprintf(fid,'\n');
+    
+    fprintf(fid,'\n');
+    fprintf(fid,'SK_Z = zeros(%d,1);\n',numel(SK_Z));
+    for rowIndex = 1:numel(SK_Z)
+        string = char(SK_Z(rowIndex,1));
+        fprintf(fid,'SK_Z(%d) = %s;\n',rowIndex,string);
+    end
+    fprintf(fid,'\n');
+    
+    [nRow,nCol] = size(K_Z);
+    fprintf(fid,'\n');
+    fprintf(fid,'K_Z = zeros(%d,1);\n',nRow,nCol);
+    for rowIndex = 1:nRow
+        string = char(K_Z(rowIndex,1));
+        % don't write out a zero-assignment
+        if ~strcmpi(string,'0')
+            fprintf(fid,'K_Z(%d) = %s;\n',rowIndex,string);
+        end
+    end
+    fprintf(fid,'\n');
+    
+end
+
 %% Close output file
 fclose(fid);
 
