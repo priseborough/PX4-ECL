@@ -5,7 +5,7 @@
 % Sequential fusion of velocity and position measurements
 % Fusion of true airspeed
 % Sequential fusion of magnetic flux measurements
-% 24 state architecture.
+% 25 state architecture.
 % IMU data is assumed to arrive at a constant rate with a time step of dt
 % IMU delta angle and velocity data are used as control inputs,
 % not observations
@@ -130,7 +130,7 @@ magYnew = magY;
 magZnew = magZ;
 
 % Define the state vector & number of states
-stateVector = [quat;vn;ve;vd;pn;pe;pd;dAngBias;dVelBias;magN;magE;magD;magX;magY;magZ;ptdNew;vwn;vwe];
+stateVector = [quat;vn;ve;vd;pn;pe;pd;dAngBias;dVelBias;magN;magE;magD;magX;magY;magZ;ptd;vwn;vwe];
 nStates=numel(stateVector);
 
 % Define vector of process equations
