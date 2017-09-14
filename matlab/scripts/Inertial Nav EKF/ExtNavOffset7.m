@@ -1,13 +1,12 @@
 % This script requires the Matlab symbolic toolbox and takes
-% ~30 minutes to run
+% ~5 minutes to run
 
 % Derivation of state and covariance prediction equations for the
-% estimation of the position scale factor, position offset and orientation
-% offset between an external nav systems world frame and the autopilot
-% system navigation frame where the world frame distance units have an arbitrary
-% scale factor relative to SI units.
+% estimation of the position scale factor between an external nav systems 
+% world frame and the autopilot system navigation frame where the world 
+% frame distance units have an arbitrary scale factor relative to SI units.
 
-% 10 state architecture.
+% 7 state architecture.
 
 % Author: Paul Riseborough
 
@@ -15,7 +14,6 @@
 
 % XYZ velocity in world frame (length/sec)
 % XYZ position in world frame (length)
-% XYZ position of the workd frame origin in navigation frame (m)
 % Scale factor that converts from nav to word frame length units. 
 
 % Observations:
@@ -51,20 +49,18 @@ Tnw = Quat2Tbn(quat);
 % The nav frame accelerations are treated as control inputs
 accel_nav = [acc_x_n;acc_y_n;acc_z_n];
 
-% rotate nav accel into word frame and integrate to get velocity and
+% rotate nav accel into world frame and integrate to get velocity and
 % position
-vel_nav = [vel_x_n;vel_y_n;vel_z_n];
-vel_nav_new = vel_nav + accel_nav * dt;
-pos_nav = [pos_x_n;pos_y_n;pos_z_n];
-origin = [ogn_x;ogn_y;ogn_z];
-pos_nav_new = pos_nav + vel_nav * dt;
+vel_world = [vel_x_w;vel_y_w;vel_z_w];
+vel_world_new = vel_world + Tnw * accel_nav * dt;
+pos_world = [pos_x_n;pos_y_w;pos_z_w];
+pos_world_new = pos_world + vel_world * dt;
 
 % static process models
 scale_new = scale;
-origin_new = origin;
 
-state_vec = [vel_nav;pos_nav;origin;scale];
-state_vec_new = [vel_nav_new;pos_nav_new;origin_new;scale_new];
+state_vec = [vel_world;pos_world;scale];
+state_vec_new = [vel_world_new;pos_world_new;scale_new];
 
 nStates=numel(state_vec);
 
@@ -97,28 +93,6 @@ PP = F*P*transpose(F) + Q;
 
 % Collect common expressions to optimise processing
 [PP,SPP]=OptimiseAlgebra(PP,'SPP');
-
-%% observation model of position in world frame
-% correct for offset, rotation and scale factor
-pos_world = scale * Tnw * (pos_nav - origin);
-
-% calculate jacobians and Kalman gains for world frame position observation
-syms R_POS 'real' % position observation variance
-
-H_X = jacobian(pos_world(1),state_vec); % measurement Jacobian
-[H_X,SH_X]=OptimiseAlgebra(H_X,'SH_X'); % optimise processing
-K_X = (P*transpose(H_X))/(H_X*P*transpose(H_X) + R_POS);
-[K_X,SK_X]=OptimiseAlgebra(K_X,'SK_X'); % Kalman gain vector
-
-H_Y = jacobian(pos_world(2),state_vec); % measurement Jacobian
-[H_Y,SH_Y]=OptimiseAlgebra(H_Y,'SH_Y'); % optimise processing
-K_Y = (P*transpose(H_Y))/(H_Y*P*transpose(H_Y) + R_POS);
-[K_Y,SK_Y]=OptimiseAlgebra(K_Y,'SK_Y'); % Kalman gain vector
-
-H_Z = jacobian(pos_world(3),state_vec); % measurement Jacobian
-[H_Z,SH_Z]=OptimiseAlgebra(H_Z,'SH_Z'); % optimise processing
-K_Z = (P*transpose(H_Z))/(H_Z*P*transpose(H_Z) + R_POS);
-[K_Z,SK_Z]=OptimiseAlgebra(K_Z,'SK_Z'); % Kalman gain vector
 
 %% convert to C code
 
