@@ -111,6 +111,24 @@ if exist('PP','var')
     
 end
 
+if exist('Pnew','var')
+    
+    fprintf(fid,'\n');
+    fprintf(fid,'Pnew = zeros(%d,%d);\n',nStates,nStates);
+    for colIndex = 1:nStates
+        for rowIndex = 1:colIndex
+            string = char(Pnew(rowIndex,colIndex));
+            % don't write out a zero-assignment
+            if ~strcmpi(string,'0')
+                fprintf(fid,'Pnew(%d,%d) = %s;\n',rowIndex,colIndex,string);
+            end
+        end
+    end
+    fprintf(fid,'\n');
+    
+end
+
+
 %% Write equations for velocity and position data fusion
 if exist('H_VP','var')
     
