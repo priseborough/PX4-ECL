@@ -14,7 +14,7 @@
 
 % XYZ velocity in world frame (length/sec)
 % XYZ position in world frame (length)
-% Scale factor that converts from nav to word frame length units. 
+% Natural log of scale factor that converts from nav to word frame length units. 
 
 % Observations:
 
@@ -30,7 +30,7 @@ reset(symengine);
 syms pos_x pos_y pos_z 'real' % world frame position in relative units (m) * scale
 syms vel_x vel_y vel_z 'real' % world frame velocity in reltive units (m/s) * scale
 syms delVelWorld_x delVelWorld_y delVelWorld_z 'real' % world frame acceleration in SI units (m/s/s)
-syms scale 'real' % scale factor to convert from nav frame to world frame
+syms scaleLog 'real' % natural log of scale factor to convert from nav frame to world frame
 syms delT 'real' % time step (sec)
 syms delVelVar 'real' % variance of world frame delta velocity increments
 
@@ -40,15 +40,15 @@ delVel = [delVelWorld_x;delVelWorld_y;delVelWorld_z];
 % rotate nav accel into world frame and integrate to get velocity and
 % position
 vel_world = [vel_x;vel_y;vel_z];
-vel_world_new = vel_world + scale * delVel;
+vel_world_new = vel_world + exp(scaleLog) * delVel;
 pos_world = [pos_x;pos_y;pos_z];
 pos_world_new = pos_world + vel_world * delT;
 
 % static process models
-scale_new = scale;
+scaleLog_new = scaleLog;
 
-state_vec = [vel_world;pos_world;scale];
-state_vec_new = [vel_world_new;pos_world_new;scale_new];
+state_vec = [vel_world;pos_world;scaleLog];
+state_vec_new = [vel_world_new;pos_world_new;scaleLog_new];
 
 nStates=numel(state_vec);
 
