@@ -203,7 +203,7 @@ for lineIndex = 1:length(SymbolicOutput)
 end
 
 %% Write to file
-fileName = strcat('C_code',int2str(nStates),'.txt');
+fileName = strcat('./c_code/C_code',int2str(nStates),'.txt');
 fid = fopen(fileName,'wt');
 for lineIndex = 1:length(SymbolicOutput)
     fprintf(fid,char(SymbolicOutput(lineIndex)));
