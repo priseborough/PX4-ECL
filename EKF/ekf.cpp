@@ -384,8 +384,6 @@ void Ekf::predictSigmaPoints()
 	}
 
 
-	constrainStates();
-
 	// calculate an average filter update time
 	float input = 0.5f * (_imu_sample_delayed.delta_vel_dt + _imu_sample_delayed.delta_ang_dt);
 

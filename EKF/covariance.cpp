@@ -232,26 +232,37 @@ void Ekf::prediction()
 	// By definition the first column is the zero error point
 	_sigma_x_a(0,0) = _sigma_x_a(0,1) = _sigma_x_a(0,2) = 0.0f;
 	for (uint8_t s=1; s<UKF_N_SIGMA; s++) {
-	    sigma_x_a(1:3,s) = _grp_f * dq(2:4,s)/(_grp_a + dq(1,s) );
+		for (uint8_t i=0; i<3; i++) {
+			_sigma_x_a(i,s) = _grp_f * sigma_dq[s](i+1)/(_grp_a + sigma_dq[s](0));
+		}
 	}
 
 	// Calculate mean of predicted states from the sigma points
-	x_m = sigma_x_a(1:param.ukf.nP,:) * param.ukf.wm;
-
-	// Update the kinematic states (vel and pos)
-	// The others use a stationary state  prediction model and will not
-	// change mean value during the prediction step
-	x_m(4:9) = x_m(4:9);
+	for (uint8_t i=0; i<UKF_N_STATES; i++) {
+		_ukf_states.vector(i) = 0.0f;
+		for (uint8_t s=0; s<UKF_N_SIGMA; s++) {
+			_ukf_states.vector(i) += _sigma_x_a(i,s) * _ukf_wm[s];
+		}
+	}
 
 	// constrain states
-	x_m  = ConstrainStates(x_m,dt_imu_avg);
+	constrainStates();
 
 	// Calculate covariance of predicted vehicle states from the sigma points using
 	// the unscented transform
-	P = zeros(param.ukf.nP,param.ukf.nP);
-	for i=1:2*param.ukf.L+1
-	    P = P + param.ukf.wc(i)*(sigma_x_a(1:param.ukf.nP,i) - x_m)*(sigma_x_a(1:param.ukf.nP,i) - x_m)';
-	end
+	memset(&P_UKF, 0, sizeof(P_UKF));
+	for (uint8_t s=0; s<UKF_N_SIGMA; s++) {
+		// P = P + param.ukf.wc(i)*(sigma_x_a(1:param.ukf.nP,s) - x_m)*(sigma_x_a(1:param.ukf.nP,s) - x_m)';
+		float temp_val[UKF_N_STATES];
+		for (uint8_t i=0; i<UKF_N_STATES; i++) {
+			temp_val[i] = _sigma_x_a(i,s) - _ukf_states.vector(i);
+		}
+		for (uint8_t i=0; i<UKF_N_STATES; i++) {
+			for (uint8_t j=0; j<UKF_N_STATES; j++) {
+				P_UKF(i,j) = _ukf_wc[s] * temp_val[i] * temp_val[j];
+			}
+		}
+	}
 
 
 	// fix gross errors in the covariance matrix and ensure rows and

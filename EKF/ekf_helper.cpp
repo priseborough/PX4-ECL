@@ -711,35 +711,35 @@ void Ekf::makeSymmetrical(float (&cov_mat)[_k_num_states][_k_num_states], uint8_
 void Ekf::constrainStates()
 {
 	for (int i = 0; i < 4; i++) {
-		_state.quat_nominal(i) = math::constrain(_state.quat_nominal(i), -1.0f, 1.0f);
+		_ukf_states.data.quat(i) = math::constrain(_state.quat_nominal(i), -1.0f, 1.0f);
 	}
 
 	for (int i = 0; i < 3; i++) {
-		_state.vel(i) = math::constrain(_state.vel(i), -1000.0f, 1000.0f);
+		_ukf_states.data.vel(i) = math::constrain(_state.vel(i), -1000.0f, 1000.0f);
 	}
 
 	for (int i = 0; i < 3; i++) {
-		_state.pos(i) = math::constrain(_state.pos(i), -1.e6f, 1.e6f);
+		_ukf_states.data.pos(i) = math::constrain(_state.pos(i), -1.e6f, 1.e6f);
 	}
 
 	for (int i = 0; i < 3; i++) {
-		_state.gyro_bias(i) = math::constrain(_state.gyro_bias(i), -0.349066f * _dt_ekf_avg, 0.349066f * _dt_ekf_avg);
+		_ukf_states.data.gyro_bias(i) = math::constrain(_state.gyro_bias(i), -0.349066f * _dt_ekf_avg, 0.349066f * _dt_ekf_avg);
 	}
 
 	for (int i = 0; i < 3; i++) {
-		_state.accel_bias(i) = math::constrain(_state.accel_bias(i), -_params.acc_bias_lim * _dt_ekf_avg, _params.acc_bias_lim * _dt_ekf_avg);
+		_ukf_states.data.accel_bias(i) = math::constrain(_state.accel_bias(i), -_params.acc_bias_lim * _dt_ekf_avg, _params.acc_bias_lim * _dt_ekf_avg);
 	}
 
 	for (int i = 0; i < 3; i++) {
-		_state.mag_I(i) = math::constrain(_state.mag_I(i), -1.0f, 1.0f);
+		_ukf_states.data.mag_I(i) = math::constrain(_state.mag_I(i), -1.0f, 1.0f);
 	}
 
 	for (int i = 0; i < 3; i++) {
-		_state.mag_B(i) = math::constrain(_state.mag_B(i), -0.5f, 0.5f);
+		_ukf_states.data.mag_B(i) = math::constrain(_state.mag_B(i), -0.5f, 0.5f);
 	}
 
 	for (int i = 0; i < 2; i++) {
-		_state.wind_vel(i) = math::constrain(_state.wind_vel(i), -100.0f, 100.0f);
+		_ukf_states.data.wind_vel(i) = math::constrain(_state.wind_vel(i), -100.0f, 100.0f);
 	}
 }
 
