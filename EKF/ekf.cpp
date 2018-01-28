@@ -93,6 +93,8 @@ bool Ekf::init(uint64_t timestamp)
 	_ang_rate_mag_filt = 0.0f;
 	_prev_dvel_bias_var.zero();
 
+	initUkfClassVariables();
+
 	return ret;
 }
 

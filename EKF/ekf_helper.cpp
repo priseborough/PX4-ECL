@@ -1589,3 +1589,16 @@ void Ekf::get_ekf2ev_quaternion(float *quat)
 		quat[i] = quat_ekf2ev(i);
 	}
 }
+
+// initialise UKF class variables
+void Ekf::initUkfClassVariables()
+{
+	_ukf_wm[0] = _ukf_lambda/(_ukf_lambda+(float)_ukf_L);
+	_ukf_wc[0] = _ukf_wm[0] + 1.0f - sq(_ukf_alpha) + _ukf_beta;
+	float temp = 0.5f / (float)_ukf_L;
+	for (uint8_t i=1; i<_ukf_n_aug; i++) {
+		_ukf_wm[i] = temp;
+		_ukf_wc[i] = temp;
+	}
+
+}
