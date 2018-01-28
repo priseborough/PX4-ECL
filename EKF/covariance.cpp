@@ -212,6 +212,7 @@ void Ekf::prediction()
 	CalcSigmaPoints();
 
 	// convert the attitude error vector sigma points to equivalent delta quaternions
+	// Don't calculate the first column - it is zero by definition and not used
 	Quatf dq[UKF_N_SIGMA];
 	float normsigmaX2;
 	Quatf q_temp;
@@ -224,11 +225,11 @@ void Ekf::prediction()
 		dq[s] = q_temp;
 	}
 
-	 // Apply the delta quaternions to the previous estimate to calculate the
-	 // quaternion sigma points. Although we could propagate the delta angles
-	 // through the vehicle state prediction, it is more accurate to use
-	 // quaternions and convert back to a set of GRP attitude error vectors
-	 // when the covariance information needs to be extracted.
+	// Apply the delta quaternions to the previous estimate to calculate the
+	// quaternion sigma points. Although we could propagate the delta angles
+	// through the vehicle state prediction, it is more accurate to use
+	// quaternions and convert back to a set of GRP attitude error vectors
+	// when the covariance information needs to be extracted.
 	 _sigma_quat[0] = _ukf_states.data.quat;
 	 for (uint8_t s=1; s<(2*_ukf_L); s++) {
 	     _sigma_quat[s] = dq[s] * _sigma_quat[s];
@@ -236,8 +237,6 @@ void Ekf::prediction()
 
 	// Propagate each sigma point forward using the INS equations
 	predictSigmaPoints();
-
-	//
 
 	// Use the sigma points to calculate the mean state vector and the covariances
 	// Store the quaternion state estimate
@@ -422,7 +421,7 @@ void Ekf::CalcSigmaPoints()
 		x_a_prev(i) = _ukf_states.vector(i);
 	}
 	for (int i = UKF_N_STATES; i < UKF_N_AUG_STATES; i++) {
-		// IMU noise is zero mean
+		// IMU noise has zero mean expected value
 		x_a_prev(i) = 0.0f;
 	}
 
