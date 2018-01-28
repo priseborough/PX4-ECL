@@ -230,30 +230,36 @@ void Ekf::prediction()
 	 // through the vehicle state prediction, it is more accurate to use
 	 // quaternions and convert back to a set of GRP attitude error vectors
 	 // when the covariance information needs to be extracted.
-	 _sigma_quat[0] = _state.quat_nominal;
+	 _sigma_quat[0] = _ukf_states.data.quat;
 	 for (uint8_t s=1; s<(2*_ukf_L); s++) {
 	     _sigma_quat[s] = dq[s] * _sigma_quat[s];
 	 }
 
-	// Propagate each sigma point through the vehicle state prediction
+	// Propagate each sigma point forward using the INS equations
 	predictSigmaPoints();
+
+	//
 
 	// Use the sigma points to calculate the mean state vector and the covariances
 	// Store the quaternion state estimate
 	// The attitude error is zero mean by definition so we do not need to
 	// calculate the mean from the sigma points
+	for (uint8_t i=0; i<UKF_N_AUG_STATES; i++) {
+		_ukf_states.vector(i) = _sigma_x_a(i,0);
+	}
 	_ukf_states.data.quat = _sigma_quat[0];
+	_ukf_states_mean.data.quat = _sigma_quat[0];
 
 	// Convert propagated quaternions to delta quaternions around the
 	// expected value
 	Quatf sigma_dq[UKF_N_SIGMA];
-	Quatf qm_inverse = _ukf_states.data.quat.inversed();
+	Quatf qm_inverse = _ukf_states_mean.data.quat.inversed();
 	for (uint8_t s=0; s<UKF_N_SIGMA; s++) {
 	    sigma_dq[s] = _sigma_quat[s] * qm_inverse;
 	}
 
 	// Convert error quaternions to attitude error vector
-	// By definition the first column is the zero error point
+	// By definition the first column is the expected value
 	_sigma_x_a(0,0) = _sigma_x_a(0,1) = _sigma_x_a(0,2) = 0.0f;
 	for (uint8_t s=1; s<UKF_N_SIGMA; s++) {
 		for (uint8_t i=0; i<3; i++) {
@@ -263,14 +269,11 @@ void Ekf::prediction()
 
 	// Calculate mean of predicted states from the sigma points
 	for (uint8_t i=0; i<UKF_N_STATES; i++) {
-		_ukf_states.vector(i) = 0.0f;
+		_ukf_states_mean.vector(i) = 0.0f;
 		for (uint8_t s=0; s<UKF_N_SIGMA; s++) {
-			_ukf_states.vector(i) += _sigma_x_a(i,s) * _ukf_wm[s];
+			_ukf_states_mean.vector(i) += _sigma_x_a(i,s) * _ukf_wm[s];
 		}
 	}
-
-	// constrain states
-	constrainStates();
 
 	// Calculate covariance of predicted vehicle states from the sigma points using
 	// the unscented transform
@@ -279,7 +282,7 @@ void Ekf::prediction()
 		// P = P + param.ukf.wc(i)*(sigma_x_a(1:param.ukf.nP,s) - x_m)*(sigma_x_a(1:param.ukf.nP,s) - x_m)';
 		float temp_val[UKF_N_STATES];
 		for (uint8_t i=0; i<UKF_N_STATES; i++) {
-			temp_val[i] = _sigma_x_a(i,s) - _ukf_states.vector(i);
+			temp_val[i] = _sigma_x_a(i,s) - _ukf_states_mean.vector(i);
 		}
 		for (uint8_t i=0; i<UKF_N_STATES; i++) {
 			for (uint8_t j=0; j<UKF_N_STATES; j++) {

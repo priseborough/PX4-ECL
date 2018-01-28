@@ -284,6 +284,7 @@ private:
 	};
 
 	ukf_state_struct _ukf_states {};
+	ukf_state_struct _ukf_states_mean {};
 	Quatf _sigma_quat[UKF_N_SIGMA] {};
 
 	// UKF misc variables
