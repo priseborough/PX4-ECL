@@ -119,7 +119,7 @@ void Ekf::get_vel_var(Vector3f &vel_var)
 	vel_var(2) = P_UKF(5,5);
 }
 
-void Ekf::predictCovariance()
+void Ekf::prediction()
 {
 
 	float dt = math::constrain(_imu_sample_delayed.delta_ang_dt, 0.0005f * FILTER_UPDATE_PERIOD_MS, 0.002f * FILTER_UPDATE_PERIOD_MS);
@@ -211,22 +211,47 @@ void Ekf::predictCovariance()
 	// Calculate an array of sigma points for the augmented state vector
 	CalcSigmaPoints();
 
-	// assign IMU noise variances
-	// inputs to the system are 3 delta angles and 3 delta velocities
-	float daxVar, dayVar, dazVar;
-	float dvxVar, dvyVar, dvzVar;
-	float gyro_noise = math::constrain(_params.gyro_noise, 0.0f, 1.0f);
-	daxVar = dayVar = dazVar = sq(dt * gyro_noise);
-	float accel_noise = math::constrain(_params.accel_noise, 0.0f, 1.0f);
-	if (_bad_vert_accel_detected) {
-		// Increase accelerometer process noise if bad accel data is detected. Measurement errors due to
-		// vibration induced clipping commonly reach an equivalent 0.5g offset.
-		accel_noise = BADACC_BIAS_PNOISE;
+	// Propagate each sigma point through the vehicle state prediction
+	predictSigmaPoints();
+
+	// Use the sigma points to calculate the mean state vector and the covariances
+	// Store the quaternion state estimate
+	// The attitude error is zero mean by definition so we do not need to
+	// calculate the mean from the sigma points
+	_ukf_states.data.quat = _sigma_quat[0];
+
+	// Convert propagated quaternions to delta quaternions around the
+	// expected value
+	Quatf sigma_dq[UKF_N_SIGMA];
+	Quatf qm_inverse = _ukf_states.data.quat.inversed();
+	for (uint8_t s=0; s<UKF_N_SIGMA; s++) {
+	    sigma_dq[s] = _sigma_quat[s] * qm_inverse;
 	}
-	dvxVar = dvyVar = dvzVar = sq(dt * accel_noise);
 
-	// predict the covariance
+	// Convert error quaternions to attitude error vector
+	// By definition the first column is the zero error point
+	_sigma_x_a(0,0) = _sigma_x_a(0,1) = _sigma_x_a(0,2) = 0.0f;
+	for (uint8_t s=1; s<UKF_N_SIGMA; s++) {
+	    sigma_x_a(1:3,s) = _grp_f * dq(2:4,s)/(_grp_a + dq(1,s) );
+	}
 
+	// Calculate mean of predicted states from the sigma points
+	x_m = sigma_x_a(1:param.ukf.nP,:) * param.ukf.wm;
+
+	// Update the kinematic states (vel and pos)
+	// The others use a stationary state  prediction model and will not
+	// change mean value during the prediction step
+	x_m(4:9) = x_m(4:9);
+
+	// constrain states
+	x_m  = ConstrainStates(x_m,dt_imu_avg);
+
+	// Calculate covariance of predicted vehicle states from the sigma points using
+	// the unscented transform
+	P = zeros(param.ukf.nP,param.ukf.nP);
+	for i=1:2*param.ukf.L+1
+	    P = P + param.ukf.wc(i)*(sigma_x_a(1:param.ukf.nP,i) - x_m)*(sigma_x_a(1:param.ukf.nP,i) - x_m)';
+	end
 
 
 	// fix gross errors in the covariance matrix and ensure rows and
@@ -404,15 +429,13 @@ void Ekf::fixCovarianceErrors()
 
 	// convert the attitude error vector sigma points to equivalent delta quaternions
 	Quatf dq[UKF_N_SIGMA];
-
-	// calculate remaining columns
 	float normsigmaX2;
 	Quatf q_temp;
 	for (uint8_t s=1; s<(2*_ukf_L); s++) {
-		normsigmaX2 = sq(sigma_x_a(0,s)) + sq(sigma_x_a(1,s)) + sq(sigma_x_a(2,s));
+		normsigmaX2 = sq(_sigma_x_a(0,s)) + sq(_sigma_x_a(1,s)) + sq(_sigma_x_a(2,s));
 		q_temp(0) = (-_grp_a * normsigmaX2 + _grp_f*sqrtf( sq(_grp_f) + (1.0f - sq(_grp_a)) * normsigmaX2)) / (sq(_grp_f) + normsigmaX2);
 		for (uint8_t i=0; i<3; i++) {
-			q_temp(i+1) = (_grp_a + q_temp(0)) * sigma_x_a(i,s) / _grp_f;
+			q_temp(i+1) = (_grp_a + q_temp(0)) * _sigma_x_a(i,s) / _grp_f;
 		}
 		dq[s] = q_temp;
 	}
@@ -522,7 +545,7 @@ void Ekf::CalcSigmaPoints()
 	// first column
 	for (int i = 0; i < UKF_N_AUG_STATES; i++) {
 		// vehicle states
-		sigma_x_a(i,0) = x_a_prev(i);
+		_sigma_x_a(i,0) = x_a_prev(i);
 	}
 
 	// remaining columns
@@ -530,8 +553,8 @@ void Ekf::CalcSigmaPoints()
 	for (int j = 0; j < UKF_N_AUG_STATES; j++) {
 		for (int i = 0; i < UKF_N_AUG_STATES; i++) {
 			float temp_var2 = temp_var1 * PA_UKF(i,j);
-			sigma_x_a(i,j+1) = x_a_prev(i) + temp_var2;
-			sigma_x_a(i,j+1+UKF_N_AUG_STATES) = x_a_prev(i) - temp_var2;
+			_sigma_x_a(i,j+1) = x_a_prev(i) + temp_var2;
+			_sigma_x_a(i,j+1+UKF_N_AUG_STATES) = x_a_prev(i) - temp_var2;
 		}
 	}
 }

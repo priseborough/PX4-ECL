@@ -263,7 +263,7 @@ private:
 	matrix::SquareMatrix<float, 6> SQ_UKF; ///< lower diagonal Cholesky decomposition for the input noise covariance matrix
 	matrix::SquareMatrix<float, UKF_N_AUG_STATES> PA_UKF; ///< augmented state covariance matrix
 	matrix::SquareMatrix<float, UKF_N_AUG_STATES> SPA_UKF; ///< lower diagonal Cholesky decomposition for the augmented state covariance matrix
-	matrix::Matrix<float, UKF_N_AUG_STATES, UKF_N_SIGMA> sigma_x_a; ///< augmented state vector sigma points
+	matrix::Matrix<float, UKF_N_AUG_STATES, UKF_N_SIGMA> _sigma_x_a; ///< augmented state vector sigma points
 
 	// UKF augmented state vector
 	union ukf_state_struct {
@@ -276,6 +276,9 @@ private:
 			Vector3f    mag_I;	///< NED earth magnetic field in gauss
 			Vector3f    mag_B;	///< magnetometer bias estimate in body frame in gauss
 			Vector2f    wind_vel;	///< wind velocity in m/s
+			Vector3f    dang_err;	///< delta angle error (rad)
+			Vector3f    dvel_err;	///< delta velocity error (m/s)
+			Quatf       quat;	///< quaternion
 		} data;
 		matrix::Vector<float, UKF_N_AUG_STATES> vector;
 	};
@@ -496,10 +499,10 @@ private:
 	void initialiseCovariance();
 
 	// predict ekf state
-	void predictState();
+	void predictSigmaPoints();
 
-	// predict ekf covariance
-	void predictCovariance();
+	// run one prediction cycle on the states and covariance
+	void prediction();
 
 	// ekf sequential fusion of magnetometer measurements
 	void fuseMag();
