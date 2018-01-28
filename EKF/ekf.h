@@ -42,6 +42,9 @@
 
 #include "estimator_interface.h"
 #include "geo.h"
+#include <matrix/math.hpp>
+
+using namespace matrix;
 
 class Ekf : public EstimatorInterface
 {
@@ -235,24 +238,29 @@ public:
 private:
 
 	// Define Unscented Transform scaling parameters and weight vectors
-#define UKF_N_STATES 29
-#define UKF_N_AUG_STATES 59
-	const uint8_t _ukf_L{UKF_N_STATES}; // Size of augmented state vector [3x1 rotVec ; 3x1 velNED ; 3x1 posNED ; 3x1 dAngBias ; 3x1 dVelBias ; 3x1 magNED ; 3x1 magXYZ ; 2x1 velWindNE ; 3x1 dAngNoise ; 3x1 dVelNoise]
+#define UKF_N_STATES 23
+#define UKF_N_Q 6
+#define UKF_N_AUG_STATES 29
+#define UKF_N_SIGMA 59
+	const uint8_t _ukf_L{UKF_N_AUG_STATES}; // Size of augmented state vector [3x1 rotVec ; 3x1 velNED ; 3x1 posNED ; 3x1 dAngBias ; 3x1 dVelBias ; 3x1 magNED ; 3x1 magXYZ ; 2x1 velWindNE ; 3x1 dAngNoise ; 3x1 dVelNoise]
 	const float _ukf_alpha{1.0f}; // Primary scaling parameter
 	const float _ukf_beta{2.0f}; // Secondary scaling parameter (Gaussian assumption)
 	const float _ukf_kappa{0.0f}; // Tertiary scaling parameter
-	const float _ukf_lambda{sq(_ukf_alpha) * ((float)_ukf_L + _ukf_kappa) - (float)_ukf_L};
-	static const uint8_t _ukf_n_aug = UKF_N_AUG_STATES;
-	float _ukf_wm[UKF_N_AUG_STATES];
-	float _ukf_wc[UKF_N_AUG_STATES];
-	const uint8_t _ukf_nP{23}; // number of vehicle states
-	const uint8_t _ukf_nQ = 6; // number of control input noise states
+	const float _ukf_lambda{sq(_ukf_alpha) * ((float)UKF_N_AUG_STATES + _ukf_kappa) - (float)UKF_N_AUG_STATES};
+	float _ukf_wm[UKF_N_SIGMA];
+	float _ukf_wc[UKF_N_SIGMA];
 
 	// Generalized Rodrigues Parameter (GRP) coefficients
 	const float grp_a{1.0f}; // set to value that gives a vector magntude that is = to the rotation angle for small values
 	const float grp_f{2.0f*(grp_a+1.0f)};
 
-	static constexpr uint8_t _k_num_states{24};		///< number of EKF states
+	matrix::SquareMatrix<float, UKF_N_STATES> P_UKF; ///< state covariance matrix
+	matrix::SquareMatrix<float, UKF_N_STATES> SP_UKF;
+	matrix::SquareMatrix<float,6> Q_UKF; ///< control input noise covariance matrix
+	matrix::SquareMatrix<float, 6> SQ_UKF; ///< lower diagonal Cholesky decomposition for the input noise covariance matrix
+
+	static constexpr uint8_t _k_num_states{24};		///< number of unaugmented states
+
 	static constexpr float _k_earth_rate{0.000072921f};	///< earth spin rate (rad/sec)
 	static constexpr float _gravity_mss{9.80665f};		///< average earth gravity at sea level (m/sec**2)
 
@@ -655,5 +663,8 @@ private:
 
 	// initialise UKF class variables
 	void initUkfClassVariables();
+
+	// Calculate an array of sigma points for the augmented state vector
+	void CalcSigmaPoints();
 
 };

@@ -339,7 +339,7 @@ struct parameters {
 };
 
 struct stateSample {
-	Quatf  quat_nominal;	///< quaternion defining the rotaton from earth to body frame
+	Vector3f    att;	///< incremental attitude vector in rad
 	Vector3f    vel;	///< NED velocity in earth frame in m/s
 	Vector3f    pos;	///< NED position in earth frame in m
 	Vector3f    gyro_bias;	///< delta angle bias estimate in rad
@@ -347,6 +347,7 @@ struct stateSample {
 	Vector3f    mag_I;	///< NED earth magnetic field in gauss
 	Vector3f    mag_B;	///< magnetometer bias estimate in body frame in gauss
 	Vector2f    wind_vel;	///< wind velocity in m/s
+	Quatf  quat_nominal;	///< quaternion defining the rotaton from earth to body frame
 };
 
 union fault_status_u {
