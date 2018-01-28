@@ -664,6 +664,9 @@ private:
 	// zero the specified range of columns in the state covariance matrix
 	void zeroCols(float (&cov_mat)[_k_num_states][_k_num_states], uint8_t first, uint8_t last);
 
+	// zero all covariance data in the specified index range
+	void zeroCovMat(uint8_t first, uint8_t last);
+
 	// zero the specified range of off diagonals in the state covariance matrix
 	void zeroOffDiag(float (&cov_mat)[_k_num_states][_k_num_states], uint8_t first, uint8_t last);
 
@@ -673,12 +676,6 @@ private:
 
 	// calculate the measurement variance for the optical flow sensor
 	float calcOptFlowMeasVar();
-
-	// rotate quaternion covariances into variances for an equivalent rotation vector
-	Vector3f calcRotVecVariances();
-
-	// initialise the quaternion covariances using rotation vector variances
-	void initialiseQuatCovariances(Vector3f &rot_vec_var);
 
 	// perform a limited reset of the magnetic field state covariances
 	void resetMagCovariance();

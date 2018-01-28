@@ -173,11 +173,10 @@ void Ekf::resetHeight()
 			_state.pos(2) = new_pos_down;
 
 			// reset the associated covariance values
-			zeroRows(P, 9, 9);
-			zeroCols(P, 9, 9);
+			zeroCovMat(8, 8);
 
 			// the state variance is the same as the observation
-			P[9][9] = sq(_params.range_noise);
+			P_UKF(8,8) = sq(_params.range_noise);
 
 			vert_pos_reset = true;
 
@@ -198,11 +197,10 @@ void Ekf::resetHeight()
 			_state.pos(2) = _hgt_sensor_offset - baro_newest.hgt + _baro_hgt_offset;
 
 			// reset the associated covariance values
-			zeroRows(P, 9, 9);
-			zeroCols(P, 9, 9);
+			zeroCovMat(8, 8);
 
 			// the state variance is the same as the observation
-			P[9][9] = sq(_params.baro_noise);
+			P_UKF(8,8) = sq(_params.baro_noise);
 
 			vert_pos_reset = true;
 
@@ -216,11 +214,10 @@ void Ekf::resetHeight()
 			_state.pos(2) = _hgt_sensor_offset - gps_newest.hgt + _gps_alt_ref;
 
 			// reset the associated covarince values
-			zeroRows(P, 9, 9);
-			zeroCols(P, 9, 9);
+			zeroCovMat(8, 8);
 
 			// the state variance is the same as the observation
-			P[9][9] = sq(gps_newest.hacc);
+			P_UKF(8,8) = sq(gps_newest.hacc);
 
 			vert_pos_reset = true;
 
@@ -252,8 +249,7 @@ void Ekf::resetHeight()
 	}
 
 	// reset the vertical velocity covariance values
-	zeroRows(P, 6, 6);
-	zeroCols(P, 6, 6);
+	zeroCovMat(5, 5);
 
 	// reset the vertical velocity state
 	if (_control_status.flags.gps && (_time_last_imu - gps_newest.time_us < 2 * GPS_MAX_INTERVAL)) {
@@ -261,7 +257,7 @@ void Ekf::resetHeight()
 		_state.vel(2) = gps_newest.vel(2);
 
 		// the state variance is the same as the observation
-		P[6][6] = sq(1.5f * gps_newest.sacc);
+		P_UKF(5,5) = sq(1.5f * gps_newest.sacc);
 
 	} else {
 		// we don't know what the vertical velocity is, so set it to zero
@@ -269,7 +265,7 @@ void Ekf::resetHeight()
 
 		// Set the variance to a value large enough to allow the state to converge quickly
 		// that does not destabilise the filter
-		P[6][6] = 10.0f;
+		P_UKF(5,5) = 10.0f;
 
 	}
 
@@ -369,10 +365,6 @@ bool Ekf::realignYawGPS()
 			// save a copy of the quaternion state for later use in calculating the amount of reset change
 			Quatf quat_before_reset = _state.quat_nominal;
 
-			// calculate the variance for the rotation estimate expressed as a rotation vector
-			// this will be used later to reset the quaternion state covariances
-			Vector3f angle_err_var_vec = calcRotVecVariances();
-
 			// update transformation matrix from body to world frame using the current state estimate
 			_R_to_earth = quat_to_invrotmat(_state.quat_nominal);
 
@@ -411,19 +403,15 @@ bool Ekf::realignYawGPS()
 			_state.mag_I = _R_to_earth * _mag_sample_delayed.mag;
 
 			// use the combined EKF and GPS speed variance to calculate a rough estimate of the yaw error after alignment
-			float SpdErrorVariance = sq(_gps_sample_delayed.sacc) + P[4][4] + P[5][5];
+			float SpdErrorVariance = sq(_gps_sample_delayed.sacc) + P_UKF(3,3) + P_UKF(4,4);
 			float sineYawError = math::constrain(sqrtf(SpdErrorVariance) / gpsSpeed, 0.0f, 1.0f);
-			angle_err_var_vec(2) = sq(asinf(sineYawError));
-
-			// reset the quaternion covariances using the rotation vector variances
-			initialiseQuatCovariances(angle_err_var_vec);
+			P_UKF(2,2) = sq(asinf(sineYawError));
 
 			// reset the corresponding rows and columns in the covariance matrix and set the variances on the magnetic field states to the measurement variance
-			zeroRows(P, 16, 21);
-			zeroCols(P, 16, 21);
+			zeroCovMat(15, 20);
 
-			for (uint8_t index = 16; index <= 21; index ++) {
-				P[index][index] = sq(_params.mag_noise);
+			for (uint8_t index = 15; index <= 20; index ++) {
+				P_UKF(index,index) = sq(_params.mag_noise);
 			}
 
 			// record the start time for the magnetic field alignment
@@ -453,11 +441,10 @@ bool Ekf::realignYawGPS()
 			_state.mag_I = _R_to_earth * _mag_sample_delayed.mag;
 
 			// reset the corresponding rows and columns in the covariance matrix and set the variances on the magnetic field states to the measurement variance
-			zeroRows(P, 16, 21);
-			zeroCols(P, 16, 21);
+			zeroCovMat(15, 20);
 
-			for (uint8_t index = 16; index <= 21; index ++) {
-				P[index][index] = sq(_params.mag_noise);
+			for (uint8_t index = 15; index <= 20; index ++) {
+				P_UKF(index,index) = sq(_params.mag_noise);
 			}
 
 			// record the start time for the magnetic field alignment
@@ -479,10 +466,6 @@ bool Ekf::resetMagHeading(Vector3f &mag_init)
 	// save a copy of the quaternion state for later use in calculating the amount of reset change
 	Quatf quat_before_reset = _state.quat_nominal;
 	Quatf quat_after_reset = _state.quat_nominal;
-
-	// calculate the variance for the rotation estimate expressed as a rotation vector
-	// this will be used later to reset the quaternion state covariances
-	Vector3f angle_err_var_vec = calcRotVecVariances();
 
 	// update transformation matrix from body to world frame using the current estimate
 	_R_to_earth = quat_to_invrotmat(_state.quat_nominal);
@@ -594,11 +577,10 @@ bool Ekf::resetMagHeading(Vector3f &mag_init)
 	_state.mag_I = _R_to_earth_after * mag_init;
 
 	// reset the corresponding rows and columns in the covariance matrix and set the variances on the magnetic field states to the measurement variance
-	zeroRows(P, 16, 21);
-	zeroCols(P, 16, 21);
+	zeroCovMat(15, 20);
 
-	for (uint8_t index = 16; index <= 21; index ++) {
-		P[index][index] = sq(_params.mag_noise);
+	for (uint8_t index = 15; index <= 20; index ++) {
+		P_UKF(index,index) = sq(_params.mag_noise);
 	}
 
 	// record the time for the magnetic field alignment event
@@ -643,15 +625,12 @@ bool Ekf::resetMagHeading(Vector3f &mag_init)
 		// update the yaw angle variance using the variance of the measurement
 		if (_params.fusion_mode & MASK_USE_EVYAW) {
 			// using error estimate from external vision data
-			angle_err_var_vec(2) = sq(fmaxf(_ev_sample_delayed.angErr, 1.0e-2f));
+			P_UKF(2,2) = sq(fmaxf(_ev_sample_delayed.angErr, 1.0e-2f));
 
 		} else if (_params.mag_fusion_type <= MAG_FUSE_TYPE_AUTOFW) {
 			// using magnetic heading tuning parameter
-			angle_err_var_vec(2) = sq(fmaxf(_params.mag_heading_noise, 1.0e-2f));
+			P_UKF(2,2) = sq(fmaxf(_params.mag_heading_noise, 1.0e-2f));
 		}
-
-		// reset the quaternion covariances using the rotation vector variances
-		initialiseQuatCovariances(angle_err_var_vec);
 
 		// add the reset amount to the output observer buffered data
 		for (uint8_t i = 0; i < _output_buffer.get_length(); i++) {
@@ -829,35 +808,35 @@ void Ekf::get_gps_check_status(uint16_t *val)
 void Ekf::get_state_delayed(float *state)
 {
 	for (int i = 0; i < 4; i++) {
-		state[i] = _state.quat_nominal(i);
+		state[i] = _ukf_states.data.quat(i);
 	}
 
 	for (int i = 0; i < 3; i++) {
-		state[i + 4] = _state.vel(i);
+		state[i + 4] = _ukf_states.data.vel(i);
 	}
 
 	for (int i = 0; i < 3; i++) {
-		state[i + 7] = _state.pos(i);
+		state[i + 7] = _ukf_states.data.pos(i);
 	}
 
 	for (int i = 0; i < 3; i++) {
-		state[i + 10] = _state.gyro_bias(i);
+		state[i + 10] = _ukf_states.data.gyro_bias(i);
 	}
 
 	for (int i = 0; i < 3; i++) {
-		state[i + 13] = _state.accel_bias(i);
+		state[i + 13] = _ukf_states.data.accel_bias(i);
 	}
 
 	for (int i = 0; i < 3; i++) {
-		state[i + 16] = _state.mag_I(i);
+		state[i + 16] = _ukf_states.data.mag_I(i);
 	}
 
 	for (int i = 0; i < 3; i++) {
-		state[i + 19] = _state.mag_B(i);
+		state[i + 19] = _ukf_states.data.mag_B(i);
 	}
 
 	for (int i = 0; i < 2; i++) {
-		state[i + 22] = _state.wind_vel(i);
+		state[i + 22] = _ukf_states.data.wind_vel(i);
 	}
 }
 
@@ -865,9 +844,9 @@ void Ekf::get_state_delayed(float *state)
 void Ekf::get_accel_bias(float bias[3])
 {
 	float temp[3];
-	temp[0] = _state.accel_bias(0) / _dt_ekf_avg;
-	temp[1] = _state.accel_bias(1) / _dt_ekf_avg;
-	temp[2] = _state.accel_bias(2) / _dt_ekf_avg;
+	temp[0] = _ukf_states.data.accel_bias(0) / _dt_ekf_avg;
+	temp[1] = _ukf_states.data.accel_bias(1) / _dt_ekf_avg;
+	temp[2] = _ukf_states.data.accel_bias(2) / _dt_ekf_avg;
 	memcpy(bias, temp, 3 * sizeof(float));
 }
 
@@ -875,17 +854,17 @@ void Ekf::get_accel_bias(float bias[3])
 void Ekf::get_gyro_bias(float bias[3])
 {
 	float temp[3];
-	temp[0] = _state.gyro_bias(0) / _dt_ekf_avg;
-	temp[1] = _state.gyro_bias(1) / _dt_ekf_avg;
-	temp[2] = _state.gyro_bias(2) / _dt_ekf_avg;
+	temp[0] = _ukf_states.data.gyro_bias(0) / _dt_ekf_avg;
+	temp[1] = _ukf_states.data.gyro_bias(1) / _dt_ekf_avg;
+	temp[2] = _ukf_states.data.gyro_bias(2) / _dt_ekf_avg;
 	memcpy(bias, temp, 3 * sizeof(float));
 }
 
 // get the diagonal elements of the covariance matrix
 void Ekf::get_covariances(float *covariances)
 {
-	for (unsigned i = 0; i < _k_num_states; i++) {
-		covariances[i] = P[i][i];
+	for (unsigned i = 0; i < UKF_N_STATES; i++) {
+		covariances[i] = P_UKF(i,i);
 	}
 }
 
@@ -931,8 +910,8 @@ void Ekf::get_ekf_gpos_accuracy(float *ekf_eph, float *ekf_epv, bool *dead_recko
 			       (_control_status.flags.fuse_beta && _control_status.flags.fuse_aspd));
 
 	if (vel_pos_aiding && _NED_origin_initialised) {
-		hpos_err = sqrtf(P[7][7] + P[8][8] + sq(_gps_origin_eph));
-		vpos_err = sqrtf(P[9][9] + sq(_gps_origin_epv));
+		hpos_err = sqrtf(P_UKF(6,6) + P_UKF(7,7) + sq(_gps_origin_eph));
+		vpos_err = sqrtf(P_UKF(8,8) + sq(_gps_origin_epv));
 
 	} else {
 		hpos_err = 0.0f;
@@ -965,8 +944,8 @@ void Ekf::get_ekf_lpos_accuracy(float *ekf_eph, float *ekf_epv, bool *dead_recko
 			       (_control_status.flags.fuse_beta && _control_status.flags.fuse_aspd));
 
 	if (vel_pos_aiding && _NED_origin_initialised) {
-		hpos_err = sqrtf(P[7][7] + P[8][8]);
-		vpos_err = sqrtf(P[9][9]);
+		hpos_err = sqrtf(P_UKF(7,7) + P_UKF(6,6));
+		vpos_err = sqrtf(P_UKF(8,8));
 
 	} else {
 		hpos_err = 0.0f;
@@ -998,8 +977,8 @@ void Ekf::get_ekf_vel_accuracy(float *ekf_evh, float *ekf_evv, bool *dead_reckon
 			       (_control_status.flags.fuse_beta && _control_status.flags.fuse_aspd));
 
 	if (vel_pos_aiding && _NED_origin_initialised) {
-		hvel_err = sqrtf(P[4][4] + P[5][5]);
-		vvel_err = sqrtf(P[6][6]);
+		hvel_err = sqrtf(P_UKF(4,4) + P_UKF(3,3));
+		vvel_err = sqrtf(P_UKF(5,5));
 
 	} else {
 		hvel_err = 0.0f;
@@ -1070,23 +1049,22 @@ bool Ekf::reset_imu_bias()
 	}
 
 	// Zero the delta angle and delta velocity bias states
-	_state.gyro_bias.zero();
-	_state.accel_bias.zero();
+	_ukf_states.data.gyro_bias.zero();
+	_ukf_states.data.accel_bias.zero();
 
 	// Zero the corresponding covariances
-	zeroCols(P, 10, 15);
-	zeroRows(P, 10, 15);
+	zeroCovMat(9, 14);
 
 	// Set the corresponding variances to the values use for initial alignment
 	float dt = 0.001f * (float)FILTER_UPDATE_PERIOD_MS;
-	P[12][12] = P[11][11] = P[10][10] = sq(_params.switch_on_gyro_bias * dt);
-	P[15][15] = P[14][14] = P[13][13] = sq(_params.switch_on_accel_bias * dt);
+	P_UKF(11,11) = P_UKF(10,10) = P_UKF(9,9) = sq(_params.switch_on_gyro_bias * dt);
+	P_UKF(14,14) = P_UKF(13,13) = P_UKF(12,12) = sq(_params.switch_on_accel_bias * dt);
 	_last_imu_bias_cov_reset_us = _imu_sample_delayed.time_us;
 
 	// Set previous frame values
-	_prev_dvel_bias_var(0) = P[13][13];
-	_prev_dvel_bias_var(1) = P[14][14];
-	_prev_dvel_bias_var(2) = P[15][15];
+	_prev_dvel_bias_var(0) = P_UKF(12,12);
+	_prev_dvel_bias_var(1) = P_UKF(13,13);
+	_prev_dvel_bias_var(2) = P_UKF(14,14);
 
 	return true;
 
@@ -1216,6 +1194,17 @@ void Ekf::zeroOffDiag(float (&cov_mat)[_k_num_states][_k_num_states], uint8_t fi
 	}
 }
 
+void Ekf::zeroCovMat(uint8_t first, uint8_t last)
+{
+	for (int row = 0; row <= 22; row++) {
+		for (int col = 0; col <= 22; col++) {
+			if ((row >= first && row <= last) || (col >= first && col <= last)) {
+				P_UKF(row,col) = 0.0f;
+			}
+		}
+	}
+}
+
 void Ekf::setDiag(float (&cov_mat)[_k_num_states][_k_num_states], uint8_t first, uint8_t last, float variance)
 {
 	// zero rows and columns
@@ -1285,166 +1274,6 @@ Matrix3f EstimatorInterface::quat_to_invrotmat(const Quatf &quat)
 	dcm(2, 1) = 2.0f * (q23 + q01);
 
 	return dcm;
-}
-
-// calculate the variances for the rotation vector equivalent
-Vector3f Ekf::calcRotVecVariances()
-{
-	Vector3f rot_var_vec;
-	float q0, q1, q2, q3;
-
-	if (_state.quat_nominal(0) >= 0.0f) {
-		q0 = _state.quat_nominal(0);
-		q1 = _state.quat_nominal(1);
-		q2 = _state.quat_nominal(2);
-		q3 = _state.quat_nominal(3);
-
-	} else {
-		q0 = -_state.quat_nominal(0);
-		q1 = -_state.quat_nominal(1);
-		q2 = -_state.quat_nominal(2);
-		q3 = -_state.quat_nominal(3);
-	}
-	float t2 = q0*q0;
-	float t3 = acosf(q0);
-	float t4 = -t2+1.0f;
-	float t5 = t2-1.0f;
-	if ((t4 > 1e-9f) && (t5 < -1e-9f)) {
-		float t6 = 1.0f/t5;
-		float t7 = q1*t6*2.0f;
-		float t8 = 1.0f/powf(t4,1.5f);
-		float t9 = q0*q1*t3*t8*2.0f;
-		float t10 = t7+t9;
-		float t11 = 1.0f/sqrtf(t4);
-		float t12 = q2*t6*2.0f;
-		float t13 = q0*q2*t3*t8*2.0f;
-		float t14 = t12+t13;
-		float t15 = q3*t6*2.0f;
-		float t16 = q0*q3*t3*t8*2.0f;
-		float t17 = t15+t16;
-		rot_var_vec(0) = t10*(P[0][0]*t10+P[1][0]*t3*t11*2.0f)+t3*t11*(P[0][1]*t10+P[1][1]*t3*t11*2.0f)*2.0f;
-		rot_var_vec(1) = t14*(P[0][0]*t14+P[2][0]*t3*t11*2.0f)+t3*t11*(P[0][2]*t14+P[2][2]*t3*t11*2.0f)*2.0f;
-		rot_var_vec(2) = t17*(P[0][0]*t17+P[3][0]*t3*t11*2.0f)+t3*t11*(P[0][3]*t17+P[3][3]*t3*t11*2.0f)*2.0f;
-	} else {
-		rot_var_vec(0) = 4.0f * P[1][1];
-		rot_var_vec(1) = 4.0f * P[2][2];
-		rot_var_vec(2) = 4.0f * P[3][3];
-	}
-
-	return rot_var_vec;
-}
-
-// initialise the quaternion covariances using rotation vector variances
-void Ekf::initialiseQuatCovariances(Vector3f &rot_vec_var)
-{
-	// calculate an equivalent rotation vector from the quaternion
-	float q0,q1,q2,q3;
-	if (_state.quat_nominal(0) >= 0.0f) {
-		q0 = _state.quat_nominal(0);
-		q1 = _state.quat_nominal(1);
-		q2 = _state.quat_nominal(2);
-		q3 = _state.quat_nominal(3);
-
-	} else {
-		q0 = -_state.quat_nominal(0);
-		q1 = -_state.quat_nominal(1);
-		q2 = -_state.quat_nominal(2);
-		q3 = -_state.quat_nominal(3);
-	}
-	float delta = 2.0f*acosf(q0);
-	float scaler = (delta/sinf(delta*0.5f));
-	float rotX = scaler*q1;
-	float rotY = scaler*q2;
-	float rotZ = scaler*q3;
-
-	// autocode generated using matlab symbolic toolbox
-	float t2 = rotX*rotX;
-	float t4 = rotY*rotY;
-	float t5 = rotZ*rotZ;
-	float t6 = t2+t4+t5;
-	if (t6 > 1e-9f) {
-		float t7 = sqrtf(t6);
-		float t8 = t7*0.5f;
-		float t3 = sinf(t8);
-		float t9 = t3*t3;
-		float t10 = 1.0f/t6;
-		float t11 = 1.0f/sqrtf(t6);
-		float t12 = cosf(t8);
-		float t13 = 1.0f/powf(t6,1.5f);
-		float t14 = t3*t11;
-		float t15 = rotX*rotY*t3*t13;
-		float t16 = rotX*rotZ*t3*t13;
-		float t17 = rotY*rotZ*t3*t13;
-		float t18 = t2*t10*t12*0.5f;
-		float t27 = t2*t3*t13;
-		float t19 = t14+t18-t27;
-		float t23 = rotX*rotY*t10*t12*0.5f;
-		float t28 = t15-t23;
-		float t20 = rotY*rot_vec_var(1)*t3*t11*t28*0.5f;
-		float t25 = rotX*rotZ*t10*t12*0.5f;
-		float t31 = t16-t25;
-		float t21 = rotZ*rot_vec_var(2)*t3*t11*t31*0.5f;
-		float t22 = t20+t21-rotX*rot_vec_var(0)*t3*t11*t19*0.5f;
-		float t24 = t15-t23;
-		float t26 = t16-t25;
-		float t29 = t4*t10*t12*0.5f;
-		float t34 = t3*t4*t13;
-		float t30 = t14+t29-t34;
-		float t32 = t5*t10*t12*0.5f;
-		float t40 = t3*t5*t13;
-		float t33 = t14+t32-t40;
-		float t36 = rotY*rotZ*t10*t12*0.5f;
-		float t39 = t17-t36;
-		float t35 = rotZ*rot_vec_var(2)*t3*t11*t39*0.5f;
-		float t37 = t15-t23;
-		float t38 = t17-t36;
-		float t41 = rot_vec_var(0)*(t15-t23)*(t16-t25);
-		float t42 = t41-rot_vec_var(1)*t30*t39-rot_vec_var(2)*t33*t39;
-		float t43 = t16-t25;
-		float t44 = t17-t36;
-
-		// zero all the quaternion covariances
-		zeroRows(P,0,3);
-		zeroCols(P,0,3);
-
-		// Update the quaternion internal covariances using auto-code generated using matlab symbolic toolbox
-		P[0][0] = rot_vec_var(0)*t2*t9*t10*0.25f+rot_vec_var(1)*t4*t9*t10*0.25f+rot_vec_var(2)*t5*t9*t10*0.25f;
-		P[0][1] = t22;
-		P[0][2] = t35+rotX*rot_vec_var(0)*t3*t11*(t15-rotX*rotY*t10*t12*0.5f)*0.5f-rotY*rot_vec_var(1)*t3*t11*t30*0.5f;
-		P[0][3] = rotX*rot_vec_var(0)*t3*t11*(t16-rotX*rotZ*t10*t12*0.5f)*0.5f+rotY*rot_vec_var(1)*t3*t11*(t17-rotY*rotZ*t10*t12*0.5f)*0.5f-rotZ*rot_vec_var(2)*t3*t11*t33*0.5f;
-		P[1][0] = t22;
-		P[1][1] = rot_vec_var(0)*(t19*t19)+rot_vec_var(1)*(t24*t24)+rot_vec_var(2)*(t26*t26);
-		P[1][2] = rot_vec_var(2)*(t16-t25)*(t17-rotY*rotZ*t10*t12*0.5f)-rot_vec_var(0)*t19*t28-rot_vec_var(1)*t28*t30;
-		P[1][3] = rot_vec_var(1)*(t15-t23)*(t17-rotY*rotZ*t10*t12*0.5f)-rot_vec_var(0)*t19*t31-rot_vec_var(2)*t31*t33;
-		P[2][0] = t35-rotY*rot_vec_var(1)*t3*t11*t30*0.5f+rotX*rot_vec_var(0)*t3*t11*(t15-t23)*0.5f;
-		P[2][1] = rot_vec_var(2)*(t16-t25)*(t17-t36)-rot_vec_var(0)*t19*t28-rot_vec_var(1)*t28*t30;
-		P[2][2] = rot_vec_var(1)*(t30*t30)+rot_vec_var(0)*(t37*t37)+rot_vec_var(2)*(t38*t38);
-		P[2][3] = t42;
-		P[3][0] = rotZ*rot_vec_var(2)*t3*t11*t33*(-0.5f)+rotX*rot_vec_var(0)*t3*t11*(t16-t25)*0.5f+rotY*rot_vec_var(1)*t3*t11*(t17-t36)*0.5f;
-		P[3][1] = rot_vec_var(1)*(t15-t23)*(t17-t36)-rot_vec_var(0)*t19*t31-rot_vec_var(2)*t31*t33;
-		P[3][2] = t42;
-		P[3][3] = rot_vec_var(2)*(t33*t33)+rot_vec_var(0)*(t43*t43)+rot_vec_var(1)*(t44*t44);
-
-	} else {
-		// the equations are badly conditioned so use a small angle approximation
-		P[0][0] = 0.0f;
-		P[0][1] = 0.0f;
-		P[0][2] = 0.0f;
-		P[0][3] = 0.0f;
-		P[1][0] = 0.0f;
-		P[1][1] = 0.25f * rot_vec_var(0);
-		P[1][2] = 0.0f;
-		P[1][3] = 0.0f;
-		P[2][0] = 0.0f;
-		P[2][1] = 0.0f;
-		P[2][2] = 0.25f * rot_vec_var(1);
-		P[2][3] = 0.0f;
-		P[3][0] = 0.0f;
-		P[3][1] = 0.0f;
-		P[3][2] = 0.0f;
-		P[3][3] = 0.25f * rot_vec_var(2);
-
-	}
 }
 
 void Ekf::setControlBaroHeight()

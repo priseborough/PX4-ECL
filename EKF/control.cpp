@@ -53,12 +53,9 @@ void Ekf::controlFusionModes()
 
 	// monitor the tilt alignment
 	if (!_control_status.flags.tilt_align) {
-		// whilst we are aligning the tilt, monitor the variances
-		Vector3f angle_err_var_vec = calcRotVecVariances();
-
 		// Once the tilt variances have reduced to equivalent of 3deg uncertainty, re-set the yaw and magnetic field states
 		// and declare the tilt alignment complete
-		if ((angle_err_var_vec(0) + angle_err_var_vec(1)) < sq(0.05235f)) {
+		if ((P_UKF(0,0) + P_UKF(1,1)) < sq(0.05235f)) {
 			_control_status.flags.tilt_align = true;
 			_control_status.flags.yaw_align = resetMagHeading(_mag_sample_delayed.mag);
 
@@ -373,11 +370,10 @@ void Ekf::controlOpticalFlowFusion()
 					}
 
 					// reset the velocity covariance terms
-					zeroRows(P,4,5);
-					zeroCols(P,4,5);
+					zeroCovMat(3,4);
 
 					// reset the horizontal velocity variance using the optical flow noise variance
-					P[5][5] = P[4][4] = sq(range) * calcOptFlowMeasVar();
+					P_UKF(4,4) = P_UKF(3,3) = sq(range) * calcOptFlowMeasVar();
 
 					if (!_control_status.flags.in_air) {
 						// we are likely starting OF for the first time so reset the horizontal position and vertical velocity states
@@ -393,8 +389,7 @@ void Ekf::controlOpticalFlowFusion()
 
 					// reset the corresponding covariances
 					// we are by definition at the origin at commencement so variances are also zeroed
-					zeroRows(P,7,8);
-					zeroCols(P,7,8);
+					zeroCovMat(7,8);
 
 					// align the output observer to the EKF states
 					alignOutputFilter();
@@ -656,7 +651,7 @@ void Ekf::controlHeightSensorTimeouts()
 			const baroSample& baro_init = _baro_buffer.get_newest();
 			bool baro_data_fresh = ((_time_last_imu - baro_init.time_us) < 2 * BARO_MAX_INTERVAL);
 			float baro_innov = _state.pos(2) - (_hgt_sensor_offset - baro_init.hgt + _baro_hgt_offset);
-			bool baro_data_consistent = fabsf(baro_innov) < (sq(_params.baro_noise) + P[8][8]) * sq(_params.baro_innov_gate);
+			bool baro_data_consistent = fabsf(baro_innov) < (sq(_params.baro_noise) + P_UKF(8,8)) * sq(_params.baro_innov_gate);
 
 			// if baro data is acceptable and GPS data is inaccurate, reset height to baro
 			bool reset_to_baro = baro_data_consistent && baro_data_fresh && !_baro_hgt_faulty && !gps_hgt_accurate;
@@ -1238,12 +1233,11 @@ void Ekf::controlMagFusion()
 						_control_status.flags.yaw_align = _control_status.flags.yaw_align || _flt_mag_align_complete;
 					} else {
 						// reset the mag field covariances
-						zeroRows(P, 16, 21);
-						zeroCols(P, 16, 21);
+						zeroCovMat(15, 20);
 
 						// re-instate the last used variances
 						for (uint8_t index = 0; index <= 5; index ++) {
-							P[index+16][index+16] = _saved_mag_variance[index];
+							P_UKF(index+15,index+15) = _saved_mag_variance[index];
 						}
 					}
 				}
@@ -1256,7 +1250,7 @@ void Ekf::controlMagFusion()
 				// save magnetic field state variances for next time
 				if (_control_status.flags.mag_3D) {
 					for (uint8_t index = 0; index <= 5; index ++) {
-						_saved_mag_variance[index] = P[index+16][index+16];
+						_saved_mag_variance[index] = P_UKF(index+15,index+15);
 					}
 					_control_status.flags.mag_3D = false;
 				}
@@ -1280,10 +1274,9 @@ void Ekf::controlMagFusion()
 				// When re-commencing use of magnetometer to correct vehicle states
 				// set the field state variance to the observation variance and zero
 				// the covariance terms to allow the field states re-learn rapidly
-				zeroRows(P, 16, 21);
-				zeroCols(P, 16, 21);
+				zeroCovMat(15, 20);
 				for (uint8_t index = 0; index <= 5; index ++) {
-					P[index+16][index+16] = sq(_params.mag_noise);
+					P_UKF(index+15,index+15) = sq(_params.mag_noise);
 				}
 			}
 
