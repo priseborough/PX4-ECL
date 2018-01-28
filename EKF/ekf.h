@@ -253,9 +253,10 @@ private:
 	float _ukf_wc[UKF_N_SIGMA];
 
 	// Generalized Rodrigues Parameter (GRP) coefficients
-	const float grp_a{1.0f}; // set to value that gives a vector magntude that is = to the rotation angle for small values
-	const float grp_f{2.0f*(grp_a+1.0f)};
+	const float _grp_a{1.0f}; // set to value that gives a vector magntude that is = to the rotation angle for small values
+	const float _grp_f{2.0f*(_grp_a+1.0f)};
 
+	// UKF covariance prediction variables
 	matrix::SquareMatrix<float, UKF_N_STATES> P_UKF; ///< state covariance matrix
 	matrix::SquareMatrix<float, UKF_N_STATES> SP_UKF;
 	matrix::SquareMatrix<float,6> Q_UKF; ///< control input noise covariance matrix
@@ -264,6 +265,7 @@ private:
 	matrix::SquareMatrix<float, UKF_N_AUG_STATES> SPA_UKF; ///< lower diagonal Cholesky decomposition for the augmented state covariance matrix
 	matrix::Matrix<float, UKF_N_AUG_STATES, UKF_N_SIGMA> sigma_x_a; ///< augmented state vector sigma points
 
+	// UKF augmented state vector
 	union ukf_state_struct {
 		struct {
 			Vector3f    att;	///< incremental attitude vector in rad
@@ -279,6 +281,10 @@ private:
 	};
 
 	ukf_state_struct _ukf_states {};
+	Quatf _sigma_quat[UKF_N_SIGMA] {};
+
+	// UKF misc variables
+	bool sigma_points_are_stale{false};
 
 	static constexpr uint8_t _k_num_states{24};		///< number of states
 

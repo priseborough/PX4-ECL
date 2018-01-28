@@ -397,6 +397,37 @@ void Ekf::fixCovarianceErrors()
 		// force symmetry
 		makeSymmetrical(P,21,22);
 	}
+
+	// calculate an array of sigma points for the augmented state vector
+	CalcSigmaPoints();
+	sigma_points_are_stale = false;
+
+	// convert the attitude error vector sigma points to equivalent delta quaternions
+	Quatf dq[UKF_N_SIGMA];
+
+	// calculate remaining columns
+	float normsigmaX2;
+	Quatf q_temp;
+	for (uint8_t s=1; s<(2*_ukf_L); s++) {
+		normsigmaX2 = sq(sigma_x_a(0,s)) + sq(sigma_x_a(1,s)) + sq(sigma_x_a(2,s));
+		q_temp(0) = (-_grp_a * normsigmaX2 + _grp_f*sqrtf( sq(_grp_f) + (1.0f - sq(_grp_a)) * normsigmaX2)) / (sq(_grp_f) + normsigmaX2);
+		for (uint8_t i=0; i<3; i++) {
+			q_temp(i+1) = (_grp_a + q_temp(0)) * sigma_x_a(i,s) / _grp_f;
+		}
+		dq[s] = q_temp;
+	}
+
+	 // Apply the delta quaternions to the previous estimate to calculate the
+	 // quaternion sigma points. Although we could propagate the delta angles
+	 // through the vehicle state prediction, it is more accurate to use
+	 // quaternions and convert back to a set of GRP attitude error vectors
+	 // when the covariance information needs to be extracted.
+	 _sigma_quat[0] = _state.quat_nominal;
+	 for (uint8_t s=1; s<(2*_ukf_L); s++) {
+	     _sigma_quat[s] = dq[s] * _sigma_quat[s];
+	 }
+
+
 }
 
 void Ekf::resetMagCovariance()
