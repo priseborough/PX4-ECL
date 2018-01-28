@@ -366,8 +366,8 @@ void Ekf::resetWindCovariance()
 		// Use airspeed and zer sideslip assumption to set initial covariance values for wind states
 
 		// calculate the wind speed and bearing
-		float spd = sqrtf(sq(_state.wind_vel(0))+sq(_state.wind_vel(1)));
-		float yaw = atan2f(_state.wind_vel(1),_state.wind_vel(0));
+		float spd = sqrtf(sq(_ukf_states.data.wind_vel(0))+sq(_ukf_states.data.wind_vel(1)));
+		float yaw = atan2f(_ukf_states.data.wind_vel(1),_ukf_states.data.wind_vel(0));
 
 		// calculate the uncertainty in wind speed and direction using the uncertainty in airspeed and sideslip angle
 		// used to calculate the initial wind speed

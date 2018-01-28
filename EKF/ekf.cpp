@@ -46,15 +46,15 @@
 bool Ekf::init(uint64_t timestamp)
 {
 	bool ret = initialise_interface(timestamp);
-	_state.vel.setZero();
-	_state.pos.setZero();
-	_state.gyro_bias.setZero();
-	_state.accel_bias.setZero();
-	_state.mag_I.setZero();
-	_state.mag_B.setZero();
-	_state.wind_vel.setZero();
-	_state.quat_nominal.setZero();
-	_state.quat_nominal(0) = 1.0f;
+	_ukf_states.data.vel.setZero();
+	_ukf_states.data.pos.setZero();
+	_ukf_states.data.gyro_bias.setZero();
+	_ukf_states.data.accel_bias.setZero();
+	_ukf_states.data.mag_I.setZero();
+	_ukf_states.data.mag_B.setZero();
+	_ukf_states.data.wind_vel.setZero();
+	_ukf_states.data.quat.setZero();
+	_ukf_states.data.quat(0) = 1.0f;
 
 	_output_new.vel.setZero();
 	_output_new.pos.setZero();
@@ -126,7 +126,7 @@ bool Ekf::update()
 	calculateOutputStates();
 
 	// check for NaN or inf on attitude states
-	if (!ISFINITE(_state.quat_nominal(0)) || !ISFINITE(_output_new.quat_nominal(0))) {
+	if (!ISFINITE(_ukf_states.data.quat(0)) || !ISFINITE(_output_new.quat_nominal(0))) {
 		return false;
 	}
 
@@ -239,13 +239,13 @@ bool Ekf::initialiseFilter()
 		_gps_alt_ref = 0.0f;
 
 		// Zero all of the states
-		_state.vel.setZero();
-		_state.pos.setZero();
-		_state.gyro_bias.setZero();
-		_state.accel_bias.setZero();
-		_state.mag_I.setZero();
-		_state.mag_B.setZero();
-		_state.wind_vel.setZero();
+		_ukf_states.data.vel.setZero();
+		_ukf_states.data.pos.setZero();
+		_ukf_states.data.gyro_bias.setZero();
+		_ukf_states.data.accel_bias.setZero();
+		_ukf_states.data.mag_I.setZero();
+		_ukf_states.data.mag_B.setZero();
+		_ukf_states.data.wind_vel.setZero();
 
 		// get initial roll and pitch estimate from delta velocity vector, assuming vehicle is static
 		float pitch = 0.0f;
@@ -262,11 +262,11 @@ bool Ekf::initialiseFilter()
 
 		// calculate initial tilt alignment
 		Eulerf euler_init(roll, pitch, 0.0f);
-		_state.quat_nominal = Quatf(euler_init);
-		_output_new.quat_nominal = _state.quat_nominal;
+		_ukf_states.data.quat = Quatf(euler_init);
+		_output_new.quat_nominal = _ukf_states.data.quat;
 
 		// update transformation matrix from body to world frame
-		_R_to_earth = quat_to_invrotmat(_state.quat_nominal);
+		_R_to_earth = quat_to_invrotmat(_ukf_states.data.quat);
 
 		// calculate the averaged magnetometer reading
 		Vector3f mag_init = _mag_filt_state;
@@ -284,7 +284,7 @@ bool Ekf::initialiseFilter()
 			// so it can be used as a backup ad set the initial height using the range finder
 			const baroSample& baro_newest = _baro_buffer.get_newest();
 			_baro_hgt_offset = baro_newest.hgt;
-			_state.pos(2) = -math::max(_rng_filt_state * _R_rng_to_earth_2_2, _params.rng_gnd_clearance);
+			_ukf_states.data.pos(2) = -math::max(_rng_filt_state * _R_rng_to_earth_2_2, _params.rng_gnd_clearance);
 			ECL_INFO("EKF using range finder height - commencing alignment");
 
 		} else if (_control_status.flags.ev_hgt) {
@@ -465,9 +465,9 @@ void Ekf::calculateOutputStates()
 	// correct delta angles for bias offsets
 	Vector3f delta_angle;
 	float dt_scale_correction = _dt_imu_avg / _dt_ekf_avg;
-	delta_angle(0) = _imu_sample_new.delta_ang(0) - _state.gyro_bias(0) * dt_scale_correction;
-	delta_angle(1) = _imu_sample_new.delta_ang(1) - _state.gyro_bias(1) * dt_scale_correction;
-	delta_angle(2) = _imu_sample_new.delta_ang(2) - _state.gyro_bias(2) * dt_scale_correction;
+	delta_angle(0) = _imu_sample_new.delta_ang(0) - _ukf_states.data.gyro_bias(0) * dt_scale_correction;
+	delta_angle(1) = _imu_sample_new.delta_ang(1) - _ukf_states.data.gyro_bias(1) * dt_scale_correction;
+	delta_angle(2) = _imu_sample_new.delta_ang(2) - _ukf_states.data.gyro_bias(2) * dt_scale_correction;
 
 	// calculate a yaw change about the earth frame vertical
 	float spin_del_ang_D = _R_to_earth_now(2,0) * delta_angle(0) +
@@ -480,7 +480,7 @@ void Ekf::calculateOutputStates()
 	_yaw_rate_lpf_ef = 0.95f * _yaw_rate_lpf_ef + 0.05f * spin_del_ang_D / _imu_sample_new.delta_ang_dt;
 
 	// correct delta velocity for bias offsets
-	Vector3f delta_vel = _imu_sample_new.delta_vel - _state.accel_bias * dt_scale_correction;
+	Vector3f delta_vel = _imu_sample_new.delta_vel - _ukf_states.data.accel_bias * dt_scale_correction;
 
 	// Apply corrections to the delta angle required to track the quaternion states at the EKF fusion time horizon
 	delta_angle += _delta_angle_corr;
@@ -552,7 +552,7 @@ void Ekf::calculateOutputStates()
 		_output_vert_delayed = _output_vert_buffer.get_oldest();
 
 		// calculate the quaternion delta between the INS and EKF quaternions at the EKF fusion time horizon
-		Quatf quat_inv = _state.quat_nominal.inversed();
+		Quatf quat_inv = _ukf_states.data.quat.inversed();
 		Quatf q_error =  quat_inv * _output_sample_delayed.quat_nominal;
 		q_error.normalize();
 
@@ -582,8 +582,8 @@ void Ekf::calculateOutputStates()
 		_delta_angle_corr = delta_ang_error * att_gain;
 
 		// calculate velocity and position tracking errors
-		Vector3f vel_err = (_state.vel - _output_sample_delayed.vel);
-		Vector3f pos_err = (_state.pos - _output_sample_delayed.pos);
+		Vector3f vel_err = (_ukf_states.data.vel - _output_sample_delayed.vel);
+		Vector3f pos_err = (_ukf_states.data.pos - _output_sample_delayed.pos);
 
 		// collect magnitude tracking error for diagnostics
 		_output_tracking_error[0] = delta_ang_error.norm();
@@ -611,8 +611,8 @@ void Ekf::calculateOutputStates()
 			 */
 
 			// calculate down velocity and position tracking errors
-			float vel_d_err = (_state.vel(2) - _output_vert_delayed.vel_d);
-			float pos_d_err = (_state.pos(2) - _output_vert_delayed.vel_d_integ);
+			float vel_d_err = (_ukf_states.data.vel(2) - _output_vert_delayed.vel_d);
+			float pos_d_err = (_ukf_states.data.pos(2) - _output_vert_delayed.vel_d_integ);
 
 			// calculate a velocity correction that will be applied to the output state history
 			// using a PD feedback tuned to a 5% overshoot

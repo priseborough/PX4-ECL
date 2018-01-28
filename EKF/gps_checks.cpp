@@ -70,12 +70,12 @@ bool Ekf::collect_gps(uint64_t time_usec, struct gps_message *gps)
 			// if we are already doing aiding, corect for the change in posiiton since the EKF started navigating
 			if (_control_status.flags.opt_flow || _control_status.flags.gps || _control_status.flags.ev_pos) {
 				double est_lat, est_lon;
-				map_projection_reproject(&_pos_ref, -_state.pos(0), -_state.pos(1), &est_lat, &est_lon);
+				map_projection_reproject(&_pos_ref, -_ukf_states.data.pos(0), -_ukf_states.data.pos(1), &est_lat, &est_lon);
 				map_projection_init_timestamped(&_pos_ref, est_lat, est_lon, _time_last_imu);
 			}
 
 			// Take the current GPS height and subtract the filter height above origin to estimate the GPS height of the origin
-			_gps_alt_ref = 1e-3f * (float)gps->alt + _state.pos(2);
+			_gps_alt_ref = 1e-3f * (float)gps->alt + _ukf_states.data.pos(2);
 			_NED_origin_initialised = true;
 			_last_gps_origin_time_us = _time_last_imu;
 			// set the magnetic declination returned by the geo library using the current GPS position
@@ -206,7 +206,7 @@ bool Ekf::gps_is_good(struct gps_message *gps)
 
 	// Check  the filtered difference between GPS and EKF vertical velocity
 	vel_limit = 10.0f * _params.req_vdrift;
-	float vertVel = fminf(fmaxf((gps->vel_ned[2] - _state.vel(2)), -vel_limit), vel_limit);
+	float vertVel = fminf(fmaxf((gps->vel_ned[2] - _ukf_states.data.vel(2)), -vel_limit), vel_limit);
 	_gps_velD_diff_filt = vertVel * filter_coef + _gps_velD_diff_filt * (1.0f - filter_coef);
 	_gps_check_fail_status.flags.vspeed = (fabsf(_gps_velD_diff_filt) > _params.req_vdrift);
 

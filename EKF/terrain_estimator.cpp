@@ -49,7 +49,7 @@ bool Ekf::initHagl()
 
 	if ((_time_last_imu - latest_measurement.time_us) < (uint64_t)2e5 && _R_rng_to_earth_2_2 > _params.range_cos_max_tilt) {
 		// if we have a fresh measurement, use it to initialise the terrain estimator
-		_terrain_vpos = _state.pos(2) + latest_measurement.rng * _R_rng_to_earth_2_2;
+		_terrain_vpos = _ukf_states.data.pos(2) + latest_measurement.rng * _R_rng_to_earth_2_2;
 		// initialise state variance to variance of measurement
 		_terrain_var = sq(_params.range_noise);
 		// success
@@ -57,7 +57,7 @@ bool Ekf::initHagl()
 
 	} else if (!_control_status.flags.in_air) {
 		// if on ground we assume a ground clearance
-		_terrain_vpos = _state.pos(2) + _params.rng_gnd_clearance;
+		_terrain_vpos = _ukf_states.data.pos(2) + _params.rng_gnd_clearance;
 		// Use the ground clearance value as our uncertainty
 		_terrain_var = sq(_params.rng_gnd_clearance);
 		// ths is a guess
@@ -86,7 +86,7 @@ void Ekf::runTerrainEstimator()
 		_terrain_var += sq(_imu_sample_delayed.delta_vel_dt * _params.terrain_p_noise);
 
 		// process noise due to terrain gradient
-		_terrain_var += sq(_imu_sample_delayed.delta_vel_dt * _params.terrain_gradient) * (sq(_state.vel(0)) + sq(_state.vel(
+		_terrain_var += sq(_imu_sample_delayed.delta_vel_dt * _params.terrain_gradient) * (sq(_ukf_states.data.vel(0)) + sq(_ukf_states.data.vel(
 					1)));
 
 		// limit the variance to prevent it becoming badly conditioned
@@ -103,9 +103,9 @@ void Ekf::runTerrainEstimator()
 
 		}
 
-		//constrain _terrain_vpos to be a minimum of _params.rng_gnd_clearance larger than _state.pos(2)
-		if (_terrain_vpos - _state.pos(2) < _params.rng_gnd_clearance) {
-			_terrain_vpos = _params.rng_gnd_clearance + _state.pos(2);
+		//constrain _terrain_vpos to be a minimum of _params.rng_gnd_clearance larger than _ukf_states.data.pos(2)
+		if (_terrain_vpos - _ukf_states.data.pos(2) < _params.rng_gnd_clearance) {
+			_terrain_vpos = _params.rng_gnd_clearance + _ukf_states.data.pos(2);
 		}
 	}
 }
@@ -118,7 +118,7 @@ void Ekf::fuseHagl()
 		float meas_hagl = _range_sample_delayed.rng * _R_rng_to_earth_2_2;
 
 		// predict the hagl from the vehicle position and terrain height
-		float pred_hagl = _terrain_vpos - _state.pos(2);
+		float pred_hagl = _terrain_vpos - _ukf_states.data.pos(2);
 
 		// calculate the innovation
 		_hagl_innov = pred_hagl - meas_hagl;

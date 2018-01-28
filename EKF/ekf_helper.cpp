@@ -49,18 +49,18 @@
 bool Ekf::resetVelocity()
 {
 	// used to calculate the velocity change due to the reset
-	Vector3f vel_before_reset = _state.vel;
+	Vector3f vel_before_reset = _ukf_states.data.vel;
 
 	// reset EKF states
 	if (_control_status.flags.gps) {
 		// this reset is only called if we have new gps data at the fusion time horizon
-		_state.vel = _gps_sample_delayed.vel;
+		_ukf_states.data.vel = _gps_sample_delayed.vel;
 
 		// use GPS accuracy to reset variances
 		setDiag(P,4,6,sq(_gps_sample_delayed.sacc));
 
 	} else if (_control_status.flags.opt_flow || _control_status.flags.ev_pos) {
-		_state.vel.setZero();
+		_ukf_states.data.vel.setZero();
 		zeroOffDiag(P,4,6);
 
 	} else {
@@ -68,7 +68,7 @@ bool Ekf::resetVelocity()
 	}
 
 	// calculate the change in velocity and apply to the output predictor state history
-	const Vector3f velocity_change = _state.vel - vel_before_reset;
+	const Vector3f velocity_change = _ukf_states.data.vel - vel_before_reset;
 
 	for (uint8_t index = 0; index < _output_buffer.get_length(); index++) {
 		_output_buffer[index].vel += velocity_change;
@@ -94,29 +94,29 @@ bool Ekf::resetPosition()
 {
 	// used to calculate the position change due to the reset
 	Vector2f posNE_before_reset;
-	posNE_before_reset(0) = _state.pos(0);
-	posNE_before_reset(1) = _state.pos(1);
+	posNE_before_reset(0) = _ukf_states.data.pos(0);
+	posNE_before_reset(1) = _ukf_states.data.pos(1);
 
 	// let the next odometry update know that the previous value of states cannot be used to calculate the change in position
 	_hpos_prev_available = false;
 
 	if (_control_status.flags.gps) {
 		// this reset is only called if we have new gps data at the fusion time horizon
-		_state.pos(0) = _gps_sample_delayed.pos(0);
-		_state.pos(1) = _gps_sample_delayed.pos(1);
+		_ukf_states.data.pos(0) = _gps_sample_delayed.pos(0);
+		_ukf_states.data.pos(1) = _gps_sample_delayed.pos(1);
 
 		// use GPS accuracy to reset variances
 		setDiag(P,7,8,sq(_gps_sample_delayed.hacc));
 
 	} else if (_control_status.flags.opt_flow) {
-		_state.pos(0) = 0.0f;
-		_state.pos(1) = 0.0f;
+		_ukf_states.data.pos(0) = 0.0f;
+		_ukf_states.data.pos(1) = 0.0f;
 		zeroOffDiag(P,7,8);
 
 	} else if (_control_status.flags.ev_pos) {
 		// this reset is only called if we have new ev data at the fusion time horizon
-		_state.pos(0) = _ev_sample_delayed.posNED(0);
-		_state.pos(1) = _ev_sample_delayed.posNED(1);
+		_ukf_states.data.pos(0) = _ev_sample_delayed.posNED(0);
+		_ukf_states.data.pos(1) = _ev_sample_delayed.posNED(1);
 
 		// use EV accuracy to reset variances
 		setDiag(P,7,8,sq(_ev_sample_delayed.posErr));
@@ -126,7 +126,7 @@ bool Ekf::resetPosition()
 	}
 
 	// calculate the change in position and apply to the output predictor state history
-	const Vector2f posNE_change{_state.pos(0) - posNE_before_reset(0), _state.pos(1) - posNE_before_reset(1)};
+	const Vector2f posNE_change{_ukf_states.data.pos(0) - posNE_before_reset(0), _ukf_states.data.pos(1) - posNE_before_reset(1)};
 
 	for (uint8_t index = 0; index < _output_buffer.get_length(); index++) {
 		_output_buffer[index].pos(0) += posNE_change(0);
@@ -152,9 +152,9 @@ void Ekf::resetHeight()
 	const gpsSample& gps_newest = _gps_buffer.get_newest();
 
 	// store the current vertical position and velocity for reference so we can calculate and publish the reset amount
-	float old_vert_pos = _state.pos(2);
+	float old_vert_pos = _ukf_states.data.pos(2);
 	bool vert_pos_reset = false;
-	float old_vert_vel = _state.vel(2);
+	float old_vert_vel = _ukf_states.data.vel(2);
 	bool vert_vel_reset = false;
 
 	// reset the vertical position
@@ -170,7 +170,7 @@ void Ekf::resetHeight()
 			float new_pos_down = _hgt_sensor_offset - range_newest.rng * _R_rng_to_earth_2_2;
 
 			// update the state and assoicated variance
-			_state.pos(2) = new_pos_down;
+			_ukf_states.data.pos(2) = new_pos_down;
 
 			// reset the associated covariance values
 			zeroCovMat(8, 8);
@@ -182,7 +182,7 @@ void Ekf::resetHeight()
 
 			// reset the baro offset which is subtracted from the baro reading if we need to use it as a backup
 			const baroSample& baro_newest = _baro_buffer.get_newest();
-			_baro_hgt_offset = baro_newest.hgt + _state.pos(2);
+			_baro_hgt_offset = baro_newest.hgt + _ukf_states.data.pos(2);
 
 		} else {
 			// TODO: reset to last known range based estimate
@@ -194,7 +194,7 @@ void Ekf::resetHeight()
 		const baroSample& baro_newest = _baro_buffer.get_newest();
 
 		if (_time_last_imu - baro_newest.time_us < 2 * BARO_MAX_INTERVAL) {
-			_state.pos(2) = _hgt_sensor_offset - baro_newest.hgt + _baro_hgt_offset;
+			_ukf_states.data.pos(2) = _hgt_sensor_offset - baro_newest.hgt + _baro_hgt_offset;
 
 			// reset the associated covariance values
 			zeroCovMat(8, 8);
@@ -211,7 +211,7 @@ void Ekf::resetHeight()
 	} else if (_control_status.flags.gps_hgt) {
 		// initialize vertical position and velocity with newest gps measurement
 		if (_time_last_imu - gps_newest.time_us < 2 * GPS_MAX_INTERVAL) {
-			_state.pos(2) = _hgt_sensor_offset - gps_newest.hgt + _gps_alt_ref;
+			_ukf_states.data.pos(2) = _hgt_sensor_offset - gps_newest.hgt + _gps_alt_ref;
 
 			// reset the associated covarince values
 			zeroCovMat(8, 8);
@@ -223,7 +223,7 @@ void Ekf::resetHeight()
 
 			// reset the baro offset which is subtracted from the baro reading if we need to use it as a backup
 			const baroSample& baro_newest = _baro_buffer.get_newest();
-			_baro_hgt_offset = baro_newest.hgt + _state.pos(2);
+			_baro_hgt_offset = baro_newest.hgt + _ukf_states.data.pos(2);
 
 		} else {
 			// TODO: reset to last known gps based estimate
@@ -240,10 +240,10 @@ void Ekf::resetHeight()
 		vert_pos_reset = true;
 
 		if (std::abs(dt_newest) < std::abs(dt_delayed)) {
-			_state.pos(2) = ev_newest.posNED(2);
+			_ukf_states.data.pos(2) = ev_newest.posNED(2);
 
 		} else {
-			_state.pos(2) = _ev_sample_delayed.posNED(2);
+			_ukf_states.data.pos(2) = _ev_sample_delayed.posNED(2);
 		}
 
 	}
@@ -254,14 +254,14 @@ void Ekf::resetHeight()
 	// reset the vertical velocity state
 	if (_control_status.flags.gps && (_time_last_imu - gps_newest.time_us < 2 * GPS_MAX_INTERVAL)) {
 		// If we are using GPS, then use it to reset the vertical velocity
-		_state.vel(2) = gps_newest.vel(2);
+		_ukf_states.data.vel(2) = gps_newest.vel(2);
 
 		// the state variance is the same as the observation
 		P_UKF(5,5) = sq(1.5f * gps_newest.sacc);
 
 	} else {
 		// we don't know what the vertical velocity is, so set it to zero
-		_state.vel(2) = 0.0f;
+		_ukf_states.data.vel(2) = 0.0f;
 
 		// Set the variance to a value large enough to allow the state to converge quickly
 		// that does not destabilise the filter
@@ -273,12 +273,12 @@ void Ekf::resetHeight()
 
 	// store the reset amount and time to be published
 	if (vert_pos_reset) {
-		_state_reset_status.posD_change = _state.pos(2) - old_vert_pos;
+		_state_reset_status.posD_change = _ukf_states.data.pos(2) - old_vert_pos;
 		_state_reset_status.posD_counter++;
 	}
 
 	if (vert_vel_reset) {
-		_state_reset_status.velD_change = _state.vel(2) - old_vert_vel;
+		_state_reset_status.velD_change = _ukf_states.data.vel(2) - old_vert_vel;
 		_state_reset_status.velD_counter++;
 	}
 
@@ -308,12 +308,12 @@ void Ekf::resetHeight()
 void Ekf::alignOutputFilter()
 {
 	// calculate the quaternion delta between the output and EKF quaternions at the EKF fusion time horizon
-	Quatf q_delta = _state.quat_nominal.inversed() * _output_sample_delayed.quat_nominal;
+	Quatf q_delta = _ukf_states.data.quat.inversed() * _output_sample_delayed.quat_nominal;
 	q_delta.normalize();
 
 	// calculate the velocity and posiiton deltas between the output and EKF at the EKF fusion time horizon
-	const Vector3f vel_delta = _state.vel - _output_sample_delayed.vel;
-	const Vector3f pos_delta = _state.pos - _output_sample_delayed.pos;
+	const Vector3f vel_delta = _ukf_states.data.vel - _output_sample_delayed.vel;
+	const Vector3f pos_delta = _ukf_states.data.pos - _output_sample_delayed.pos;
 
 	// loop through the output filter state history and add the deltas
 	// Note q1 *= q2 is equivalent to q1 = q2 * q1
@@ -339,7 +339,7 @@ bool Ekf::realignYawGPS()
 		float gpsCOG = atan2f(_gps_sample_delayed.vel(1), _gps_sample_delayed.vel(0));
 
 		// calculate course yaw angle
-		float ekfGOG = atan2f(_state.vel(1), _state.vel(0));
+		float ekfGOG = atan2f(_ukf_states.data.vel(1), _ukf_states.data.vel(0));
 
 		// Check the EKF and GPS course over ground for consistency
 		float courseYawError = gpsCOG - ekfGOG;
@@ -363,13 +363,13 @@ bool Ekf::realignYawGPS()
 			}
 
 			// save a copy of the quaternion state for later use in calculating the amount of reset change
-			Quatf quat_before_reset = _state.quat_nominal;
+			Quatf quat_before_reset = _ukf_states.data.quat;
 
 			// update transformation matrix from body to world frame using the current state estimate
-			_R_to_earth = quat_to_invrotmat(_state.quat_nominal);
+			_R_to_earth = quat_to_invrotmat(_ukf_states.data.quat);
 
 			// get quaternion from existing filter states and calculate roll, pitch and yaw angles
-			Eulerf euler321(_state.quat_nominal);
+			Eulerf euler321(_ukf_states.data.quat);
 
 			// apply yaw correction
 			if (!_flt_mag_align_complete) {
@@ -381,7 +381,7 @@ bool Ekf::realignYawGPS()
 			} else if (_control_status.flags.wind) {
 				// we have previously aligned yaw in-flight and have wind estimates so set the yaw such that the vehicle nose is
 				// aligned with the wind relative GPS velocity vector
-				euler321(2) = atan2f((_gps_sample_delayed.vel(1) - _state.wind_vel(1)) , (_gps_sample_delayed.vel(0) - _state.wind_vel(0)));
+				euler321(2) = atan2f((_gps_sample_delayed.vel(1) - _ukf_states.data.wind_vel(1)) , (_gps_sample_delayed.vel(0) - _ukf_states.data.wind_vel(0)));
 
 			} else {
 				// we don't have wind estimates, so align yaw to the GPS velocity vector
@@ -390,17 +390,17 @@ bool Ekf::realignYawGPS()
 			}
 
 			// calculate new filter quaternion states using corected yaw angle
-			_state.quat_nominal = Quatf(euler321);
+			_ukf_states.data.quat = Quatf(euler321);
 
 			// If heading was bad, then we alos need to reset the velocity and position states
 			_velpos_reset_request = badMagYaw;
 
 			// update transformation matrix from body to world frame using the current state estimate
-			_R_to_earth = quat_to_invrotmat(_state.quat_nominal);
+			_R_to_earth = quat_to_invrotmat(_ukf_states.data.quat);
 
 			// Use the last magnetometer measurements to reset the field states
-			_state.mag_B.zero();
-			_state.mag_I = _R_to_earth * _mag_sample_delayed.mag;
+			_ukf_states.data.mag_B.zero();
+			_ukf_states.data.mag_I = _R_to_earth * _mag_sample_delayed.mag;
 
 			// use the combined EKF and GPS speed variance to calculate a rough estimate of the yaw error after alignment
 			float SpdErrorVariance = sq(_gps_sample_delayed.sacc) + P_UKF(3,3) + P_UKF(4,4);
@@ -417,7 +417,7 @@ bool Ekf::realignYawGPS()
 			// record the start time for the magnetic field alignment
 			_flt_mag_align_start_time = _imu_sample_delayed.time_us;
 			// calculate the amount that the quaternion has changed by
-			_state_reset_status.quat_change = quat_before_reset.inversed() * _state.quat_nominal;
+			_state_reset_status.quat_change = quat_before_reset.inversed() * _ukf_states.data.quat;
 
 			// add the reset amount to the output observer buffered data
 			// Note q1 *= q2 is equivalent to q1 = q2 * q1
@@ -438,7 +438,7 @@ bool Ekf::realignYawGPS()
 			// align mag states only
 
 			// calculate initial earth magnetic field states
-			_state.mag_I = _R_to_earth * _mag_sample_delayed.mag;
+			_ukf_states.data.mag_I = _R_to_earth * _mag_sample_delayed.mag;
 
 			// reset the corresponding rows and columns in the covariance matrix and set the variances on the magnetic field states to the measurement variance
 			zeroCovMat(15, 20);
@@ -464,11 +464,11 @@ bool Ekf::realignYawGPS()
 bool Ekf::resetMagHeading(Vector3f &mag_init)
 {
 	// save a copy of the quaternion state for later use in calculating the amount of reset change
-	Quatf quat_before_reset = _state.quat_nominal;
-	Quatf quat_after_reset = _state.quat_nominal;
+	Quatf quat_before_reset = _ukf_states.data.quat;
+	Quatf quat_after_reset = _ukf_states.data.quat;
 
 	// update transformation matrix from body to world frame using the current estimate
-	_R_to_earth = quat_to_invrotmat(_state.quat_nominal);
+	_R_to_earth = quat_to_invrotmat(_ukf_states.data.quat);
 
 	// calculate the initial quaternion
 	// determine if a 321 or 312 Euler sequence is best
@@ -476,7 +476,7 @@ bool Ekf::resetMagHeading(Vector3f &mag_init)
 		// use a 321 sequence
 
 		// rotate the magnetometer measurement into earth frame
-		Eulerf euler321(_state.quat_nominal);
+		Eulerf euler321(_ukf_states.data.quat);
 
 		// Set the yaw angle to zero and calculate the rotation matrix from body to earth frame
 		euler321(2) = 0.0f;
@@ -574,7 +574,7 @@ bool Ekf::resetMagHeading(Vector3f &mag_init)
 
 	// set the earth magnetic field states using the updated rotation
 	Dcmf _R_to_earth_after = quat_to_invrotmat(quat_after_reset);
-	_state.mag_I = _R_to_earth_after * mag_init;
+	_ukf_states.data.mag_I = _R_to_earth_after * mag_init;
 
 	// reset the corresponding rows and columns in the covariance matrix and set the variances on the magnetic field states to the measurement variance
 	zeroCovMat(15, 20);
@@ -609,13 +609,13 @@ bool Ekf::resetMagHeading(Vector3f &mag_init)
 	// update the quaternion state estimates and corresponding covariances only if the change in angle has been large
 	if (delta_ang_error.norm() > math::radians(15.0f)) {
 		// update quaternion states
-		_state.quat_nominal = quat_after_reset;
+		_ukf_states.data.quat = quat_after_reset;
 
 		// record the state change
 		_state_reset_status.quat_change = q_error;
 
 		// update transformation matrix from body to world frame using the current estimate
-		_R_to_earth = quat_to_invrotmat(_state.quat_nominal);
+		_R_to_earth = quat_to_invrotmat(_ukf_states.data.quat);
 
 		// reset the rotation from the EV to EKF frame of reference if it is being used
 		if ((_params.fusion_mode & MASK_ROTATE_EV) && (_params.fusion_mode & MASK_USE_EVPOS) && !(_params.fusion_mode & MASK_USE_EVYAW)) {
@@ -656,7 +656,7 @@ void Ekf::calcMagDeclination()
 	// set source of magnetic declination for internal use
 	if (_flt_mag_align_complete) {
 		// Use value consistent with earth field state
-		_mag_declination = atan2f(_state.mag_I(1), _state.mag_I(0));
+		_mag_declination = atan2f(_ukf_states.data.mag_I(1), _ukf_states.data.mag_I(0));
 	} else if (_params.mag_declination_source & MASK_USE_GEO_DECL) {
 		// use parameter value until GPS is available, then use value returned by geo library
 		if (_NED_origin_initialised) {
@@ -690,35 +690,35 @@ void Ekf::makeSymmetrical(float (&cov_mat)[_k_num_states][_k_num_states], uint8_
 void Ekf::constrainStates()
 {
 	for (int i = 0; i < 4; i++) {
-		_ukf_states.data.quat(i) = math::constrain(_state.quat_nominal(i), -1.0f, 1.0f);
+		_ukf_states.data.quat(i) = math::constrain(_ukf_states.data.quat(i), -1.0f, 1.0f);
 	}
 
 	for (int i = 0; i < 3; i++) {
-		_ukf_states.data.vel(i) = math::constrain(_state.vel(i), -1000.0f, 1000.0f);
+		_ukf_states.data.vel(i) = math::constrain(_ukf_states.data.vel(i), -1000.0f, 1000.0f);
 	}
 
 	for (int i = 0; i < 3; i++) {
-		_ukf_states.data.pos(i) = math::constrain(_state.pos(i), -1.e6f, 1.e6f);
+		_ukf_states.data.pos(i) = math::constrain(_ukf_states.data.pos(i), -1.e6f, 1.e6f);
 	}
 
 	for (int i = 0; i < 3; i++) {
-		_ukf_states.data.gyro_bias(i) = math::constrain(_state.gyro_bias(i), -0.349066f * _dt_ekf_avg, 0.349066f * _dt_ekf_avg);
+		_ukf_states.data.gyro_bias(i) = math::constrain(_ukf_states.data.gyro_bias(i), -0.349066f * _dt_ekf_avg, 0.349066f * _dt_ekf_avg);
 	}
 
 	for (int i = 0; i < 3; i++) {
-		_ukf_states.data.accel_bias(i) = math::constrain(_state.accel_bias(i), -_params.acc_bias_lim * _dt_ekf_avg, _params.acc_bias_lim * _dt_ekf_avg);
+		_ukf_states.data.accel_bias(i) = math::constrain(_ukf_states.data.accel_bias(i), -_params.acc_bias_lim * _dt_ekf_avg, _params.acc_bias_lim * _dt_ekf_avg);
 	}
 
 	for (int i = 0; i < 3; i++) {
-		_ukf_states.data.mag_I(i) = math::constrain(_state.mag_I(i), -1.0f, 1.0f);
+		_ukf_states.data.mag_I(i) = math::constrain(_ukf_states.data.mag_I(i), -1.0f, 1.0f);
 	}
 
 	for (int i = 0; i < 3; i++) {
-		_ukf_states.data.mag_B(i) = math::constrain(_state.mag_B(i), -0.5f, 0.5f);
+		_ukf_states.data.mag_B(i) = math::constrain(_ukf_states.data.mag_B(i), -0.5f, 0.5f);
 	}
 
 	for (int i = 0; i < 2; i++) {
-		_ukf_states.data.wind_vel(i) = math::constrain(_state.wind_vel(i), -100.0f, 100.0f);
+		_ukf_states.data.wind_vel(i) = math::constrain(_ukf_states.data.wind_vel(i), -100.0f, 100.0f);
 	}
 }
 
@@ -994,7 +994,7 @@ void Ekf::get_ekf_vel_accuracy(float *ekf_evh, float *ekf_evv, bool *dead_reckon
 	if (_is_dead_reckoning) {
 		if (_control_status.flags.opt_flow) {
 			float gndclearance = math::max(_params.rng_gnd_clearance, 0.1f);
-			vel_err_conservative = math::max((_terrain_vpos - _state.pos(2)),
+			vel_err_conservative = math::max((_terrain_vpos - _ukf_states.data.pos(2)),
 							 gndclearance) * sqrtf(_flow_innov[0] * _flow_innov[0] + _flow_innov[1] * _flow_innov[1]);
 		}
 
@@ -1025,7 +1025,7 @@ void Ekf::get_ekf_ctrl_limits(float *vxy_max, bool *limit_hagl)
 	bool relying_on_optical_flow = _control_status.flags.opt_flow && !(_control_status.flags.gps || _control_status.flags.ev_pos);
 	if (relying_on_optical_flow) {
 		// Allow ground relative velocity to use 50% of available flow sensor range to allow for angular motion
-		flow_gnd_spd_max = 0.5f * _params.flow_rate_max * (_terrain_vpos - _state.pos(2));
+		flow_gnd_spd_max = 0.5f * _params.flow_rate_max * (_terrain_vpos - _ukf_states.data.pos(2));
 		flow_gnd_spd_max = fmaxf(flow_gnd_spd_max , 0.0f);
 
 		flow_limit_hagl = true;
@@ -1120,38 +1120,38 @@ void Ekf::get_ekf_soln_status(uint16_t *status)
 // fuse measurement
 void Ekf::fuse(float *K, float innovation)
 {
-	for (unsigned i = 0; i < 4; i++) {
-		_state.quat_nominal(i) = _state.quat_nominal(i) - K[i] * innovation;
+	for (unsigned i = 0; i < 3; i++) {
+		_ukf_states.data.att(i) = _ukf_states.data.att(i) - K[i] * innovation;
 	}
 
-	_state.quat_nominal.normalize();
+	_ukf_states.data.quat.normalize();
 
 	for (unsigned i = 0; i < 3; i++) {
-		_state.vel(i) = _state.vel(i) - K[i + 4] * innovation;
-	}
-
-	for (unsigned i = 0; i < 3; i++) {
-		_state.pos(i) = _state.pos(i) - K[i + 7] * innovation;
+		_ukf_states.data.vel(i) = _ukf_states.data.vel(i) - K[i + 3] * innovation;
 	}
 
 	for (unsigned i = 0; i < 3; i++) {
-		_state.gyro_bias(i) = _state.gyro_bias(i) - K[i + 10] * innovation;
+		_ukf_states.data.pos(i) = _ukf_states.data.pos(i) - K[i + 6] * innovation;
 	}
 
 	for (unsigned i = 0; i < 3; i++) {
-		_state.accel_bias(i) = _state.accel_bias(i) - K[i + 13] * innovation;
+		_ukf_states.data.gyro_bias(i) = _ukf_states.data.gyro_bias(i) - K[i + 9] * innovation;
 	}
 
 	for (unsigned i = 0; i < 3; i++) {
-		_state.mag_I(i) = _state.mag_I(i) - K[i + 16] * innovation;
+		_ukf_states.data.accel_bias(i) = _ukf_states.data.accel_bias(i) - K[i + 12] * innovation;
 	}
 
 	for (unsigned i = 0; i < 3; i++) {
-		_state.mag_B(i) = _state.mag_B(i) - K[i + 19] * innovation;
+		_ukf_states.data.mag_I(i) = _ukf_states.data.mag_I(i) - K[i + 15] * innovation;
+	}
+
+	for (unsigned i = 0; i < 3; i++) {
+		_ukf_states.data.mag_B(i) = _ukf_states.data.mag_B(i) - K[i + 18] * innovation;
 	}
 
 	for (unsigned i = 0; i < 2; i++) {
-		_state.wind_vel(i) = _state.wind_vel(i) - K[i + 22] * innovation;
+		_ukf_states.data.wind_vel(i) = _ukf_states.data.wind_vel(i) - K[i + 21] * innovation;
 	}
 }
 
@@ -1318,7 +1318,7 @@ void Ekf::calcExtVisRotMat()
 {
 	// calculate the quaternion delta between the EKF and EV reference frames at the EKF fusion time horizon
 	Quatf quat_inv = _ev_sample_delayed.quat.inversed();
-	Quatf q_error =   quat_inv * _state.quat_nominal;
+	Quatf q_error =   quat_inv * _ukf_states.data.quat;
 	q_error.normalize();
 
 	// convert to a delta angle and apply a spike and low pass filter
@@ -1380,7 +1380,7 @@ void Ekf::resetExtVisRotMat()
 {
 	// calculate the quaternion delta between the EKF and EV reference frames at the EKF fusion time horizon
 	Quatf quat_inv = _ev_sample_delayed.quat.inversed();
-	Quatf q_error =   quat_inv * _state.quat_nominal;
+	Quatf q_error =   quat_inv * _ukf_states.data.quat;
 	q_error.normalize();
 
 	// convert to a delta angle and reset
