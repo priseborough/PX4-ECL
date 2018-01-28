@@ -208,8 +208,32 @@ void Ekf::prediction()
 		P_UKF(i,i) += process_noise_variance[i];
 	}
 
-	// Calculate an array of sigma points for the augmented state vector
+	// calculate an array of sigma points for the augmented state vector
 	CalcSigmaPoints();
+	sigma_points_are_stale = false;
+
+	// convert the attitude error vector sigma points to equivalent delta quaternions
+	Quatf dq[UKF_N_SIGMA];
+	float normsigmaX2;
+	Quatf q_temp;
+	for (uint8_t s=1; s<(2*_ukf_L); s++) {
+		normsigmaX2 = sq(_sigma_x_a(0,s)) + sq(_sigma_x_a(1,s)) + sq(_sigma_x_a(2,s));
+		q_temp(0) = (-_grp_a * normsigmaX2 + _grp_f*sqrtf( sq(_grp_f) + (1.0f - sq(_grp_a)) * normsigmaX2)) / (sq(_grp_f) + normsigmaX2);
+		for (uint8_t i=0; i<3; i++) {
+			q_temp(i+1) = (_grp_a + q_temp(0)) * _sigma_x_a(i,s) / _grp_f;
+		}
+		dq[s] = q_temp;
+	}
+
+	 // Apply the delta quaternions to the previous estimate to calculate the
+	 // quaternion sigma points. Although we could propagate the delta angles
+	 // through the vehicle state prediction, it is more accurate to use
+	 // quaternions and convert back to a set of GRP attitude error vectors
+	 // when the covariance information needs to be extracted.
+	 _sigma_quat[0] = _state.quat_nominal;
+	 for (uint8_t s=1; s<(2*_ukf_L); s++) {
+	     _sigma_quat[s] = dq[s] * _sigma_quat[s];
+	 }
 
 	// Propagate each sigma point through the vehicle state prediction
 	predictSigmaPoints();
@@ -290,178 +314,31 @@ void Ekf::fixCovarianceErrors()
 
 	for (int i = 0; i <= 2; i++) {
 		// attitude vector states
-		P[i][i] = math::constrain(P[i][i], 0.0f, P_lim[0]);
+		P_UKF(i,i) = math::constrain(P_UKF(i,i), 1e-9f, P_lim[0]);
 	}
-
 	for (int i = 3; i <= 5; i++) {
 		// NED velocity states
-		P[i][i] = math::constrain(P[i][i], 0.0f, P_lim[1]);
+		P_UKF(i,i) = math::constrain(P_UKF(i,i), 1e-9f, P_lim[1]);
 	}
-
 	for (int i = 6; i <= 8; i++) {
 		// NED position states
-		P[i][i] = math::constrain(P[i][i], 0.0f, P_lim[2]);
+		P_UKF(i,i) = math::constrain(P_UKF(i,i), 1e-9f, P_lim[2]);
 	}
-
 	for (int i = 9; i <= 11; i++) {
-		// gyro bias states
-		P[i][i] = math::constrain(P[i][i], 0.0f, P_lim[3]);
+		P_UKF(i,i) = math::constrain(P_UKF(i,i), 1e-9f, P_lim[3]);
 	}
-
-	// force symmetry on the attitude, velocity and positon state covariances
-	makeSymmetrical(P,0,11);
-
-	// the following states are optional and are deactivaed when not required
-	// by ensuring the corresponding covariance matrix values are kept at zero
-
-	// accelerometer bias states
-	if ((_params.fusion_mode & MASK_INHIBIT_ACC_BIAS) || _accel_bias_inhibit) {
-		zeroRows(P,12,14);
-		zeroCols(P,12,14);
-	} else {
-		// Find the maximum delta velocity bias state variance and request a covariance reset if any variance is below the safe minimum
-		const float minSafeStateVar = 1e-9f;
-		float maxStateVar = minSafeStateVar;
-		bool resetRequired = false;
-
-		for (uint8_t stateIndex = 12; stateIndex <= 14; stateIndex++) {
-			if (P[stateIndex][stateIndex] > maxStateVar) {
-				maxStateVar = P[stateIndex][stateIndex];
-
-			} else if (P[stateIndex][stateIndex] < minSafeStateVar) {
-				resetRequired = true;
-			}
-		}
-
-		// To ensure stability of the covariance matrix operations, the ratio of a max and min variance must
-		// not exceed 100 and the minimum variance must not fall below the target minimum
-		// Also limit variance to a maximum equivalent to a 1g uncertainty
-		const float minStateVarTarget = 1E-8f;
-		float minAllowedStateVar = fmaxf(0.01f * maxStateVar, minStateVarTarget);
-
-		for (uint8_t stateIndex = 12; stateIndex <= 14; stateIndex++) {
-			P[stateIndex][stateIndex] = math::constrain(P[stateIndex][stateIndex], minAllowedStateVar,
-						    sq(_gravity_mss * _dt_ekf_avg));
-		}
-
-		// If any one axis has fallen below the safe minimum, all delta velocity covariance terms must be reset to zero
-		if (resetRequired) {
-			float delVelBiasVar[3];
-
-			// store all delta velocity bias variances
-			for (uint8_t stateIndex = 13; stateIndex <= 15; stateIndex++) {
-				delVelBiasVar[stateIndex - 13] = P[stateIndex][stateIndex];
-			}
-
-			// reset all delta velocity bias covariances
-			zeroCols(P, 13, 15);
-
-			// restore all delta velocity bias variances
-			for (uint8_t stateIndex = 13; stateIndex <= 15; stateIndex++) {
-				P[stateIndex][stateIndex] = delVelBiasVar[stateIndex - 13];
-			}
-		}
-
-		// Run additional checks to see if the delta velocity bias has hit limits in a direction that is clearly wrong
-		// calculate accel bias term aligned with the gravity vector
-		float dVel_bias_lim = 0.9f * _params.acc_bias_lim * _dt_ekf_avg;
-		float down_dvel_bias = 0.0f;
-
-		for (uint8_t axis_index = 0; axis_index < 3; axis_index++) {
-			down_dvel_bias += _state.accel_bias(axis_index) * _R_to_earth(2, axis_index);
-		}
-
-		// check that the vertical componenent of accel bias is consistent with both the vertical position and velocity innovation
-		bool bad_acc_bias = (fabsf(down_dvel_bias) > dVel_bias_lim
-				     && down_dvel_bias * _vel_pos_innov[2] < 0.0f
-				     && down_dvel_bias * _vel_pos_innov[5] < 0.0f);
-
-		// record the pass/fail
-		if (!bad_acc_bias) {
-			_fault_status.flags.bad_acc_bias = false;
-			_time_acc_bias_check = _time_last_imu;
-		} else {
-			_fault_status.flags.bad_acc_bias = true;
-		}
-
-		// if we have failed for 7 seconds continuously, reset the accel bias covariances to fix bad conditioning of
-		// the covariance matrix but preserve the variances (diagonals) to allow bias learning to continue
-		if (_time_last_imu - _time_acc_bias_check > (uint64_t)7e6) {
-			float varX = P[12][12];
-			float varY = P[13][13];
-			float varZ = P[14][14];
-			zeroRows(P,12,14);
-			zeroCols(P,12,14);
-			P[12][12] = varX;
-			P[13][13] = varY;
-			P[14][14] = varZ;
-			_time_acc_bias_check = _time_last_imu;
-			_fault_status.flags.bad_acc_bias = false;
-			ECL_WARN("EKF invalid accel bias - resetting covariance");
-		} else {
-			// ensure the covariance values are symmetrical
-			makeSymmetrical(P,12,14);
-		}
-
+	for (int i = 12; i <= 14; i++) {
+		P_UKF(i,i) = math::constrain(P_UKF(i,i), 1e-9f, P_lim[4]);
 	}
-
-	// magnetic field states
-	if (!_control_status.flags.mag_3D) {
-		zeroRows(P,15,20);
-		zeroCols(P,15,20);
-	} else {
-		// constrain variances
-		for (int i = 15; i <= 17; i++) {
-			P[i][i] = math::constrain(P[i][i], 0.0f, P_lim[5]);
-		}
-		for (int i = 18; i <= 20; i++) {
-			P[i][i] = math::constrain(P[i][i], 0.0f, P_lim[6]);
-		}
-		// force symmetry
-		makeSymmetrical(P,15,20);
+	for (int i = 15; i <= 17; i++) {
+		P_UKF(i,i) = math::constrain(P_UKF(i,i), 1e-9f, P_lim[5]);
 	}
-
-	// wind velocity states
-	if (!_control_status.flags.wind) {
-		zeroRows(P,21,22);
-		zeroCols(P,21,22);
-	} else {
-		// constrain variances
-		for (int i = 21; i <= 22; i++) {
-			P[i][i] = math::constrain(P[i][i], 0.0f, P_lim[7]);
-		}
-		// force symmetry
-		makeSymmetrical(P,21,22);
+	for (int i = 18; i <= 20; i++) {
+		P_UKF(i,i) = math::constrain(P_UKF(i,i), 1e-9f, P_lim[6]);
 	}
-
-	// calculate an array of sigma points for the augmented state vector
-	CalcSigmaPoints();
-	sigma_points_are_stale = false;
-
-	// convert the attitude error vector sigma points to equivalent delta quaternions
-	Quatf dq[UKF_N_SIGMA];
-	float normsigmaX2;
-	Quatf q_temp;
-	for (uint8_t s=1; s<(2*_ukf_L); s++) {
-		normsigmaX2 = sq(_sigma_x_a(0,s)) + sq(_sigma_x_a(1,s)) + sq(_sigma_x_a(2,s));
-		q_temp(0) = (-_grp_a * normsigmaX2 + _grp_f*sqrtf( sq(_grp_f) + (1.0f - sq(_grp_a)) * normsigmaX2)) / (sq(_grp_f) + normsigmaX2);
-		for (uint8_t i=0; i<3; i++) {
-			q_temp(i+1) = (_grp_a + q_temp(0)) * _sigma_x_a(i,s) / _grp_f;
-		}
-		dq[s] = q_temp;
+	for (int i = 21; i <= 22; i++) {
+		P_UKF(i,i) = math::constrain(P_UKF(i,i), 1e-9f, P_lim[7]);
 	}
-
-	 // Apply the delta quaternions to the previous estimate to calculate the
-	 // quaternion sigma points. Although we could propagate the delta angles
-	 // through the vehicle state prediction, it is more accurate to use
-	 // quaternions and convert back to a set of GRP attitude error vectors
-	 // when the covariance information needs to be extracted.
-	 _sigma_quat[0] = _state.quat_nominal;
-	 for (uint8_t s=1; s<(2*_ukf_L); s++) {
-	     _sigma_quat[s] = dq[s] * _sigma_quat[s];
-	 }
-
-
 }
 
 void Ekf::resetMagCovariance()
