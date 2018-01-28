@@ -238,10 +238,12 @@ public:
 private:
 
 	// Define Unscented Transform scaling parameters and weight vectors
+
 #define UKF_N_STATES 23
 #define UKF_N_Q 6
 #define UKF_N_AUG_STATES 29
 #define UKF_N_SIGMA 59
+
 	const uint8_t _ukf_L{UKF_N_AUG_STATES}; // Size of augmented state vector [3x1 rotVec ; 3x1 velNED ; 3x1 posNED ; 3x1 dAngBias ; 3x1 dVelBias ; 3x1 magNED ; 3x1 magXYZ ; 2x1 velWindNE ; 3x1 dAngNoise ; 3x1 dVelNoise]
 	const float _ukf_alpha{1.0f}; // Primary scaling parameter
 	const float _ukf_beta{2.0f}; // Secondary scaling parameter (Gaussian assumption)
@@ -261,6 +263,20 @@ private:
 	matrix::SquareMatrix<float, UKF_N_AUG_STATES> PA_UKF; ///< augmented state covariance matrix
 	matrix::SquareMatrix<float, UKF_N_AUG_STATES> SPA_UKF; ///< lower diagonal Cholesky decomposition for the augmented state covariance matrix
 	matrix::Matrix<float, UKF_N_AUG_STATES, UKF_N_SIGMA> sigma_x_a; ///< augmented state vector sigma points
+
+	union ukf_state_struct {
+		struct {
+			Vector3f    att;	///< incremental attitude vector in rad
+			Vector3f    vel;	///< NED velocity in earth frame in m/s
+			Vector3f    pos;	///< NED position in earth frame in m
+			Vector3f    gyro_bias;	///< delta angle bias estimate in rad
+			Vector3f    accel_bias;	///< delta velocity bias estimate in m/s
+			Vector3f    mag_I;	///< NED earth magnetic field in gauss
+			Vector3f    mag_B;	///< magnetometer bias estimate in body frame in gauss
+			Vector2f    wind_vel;	///< wind velocity in m/s
+		} data;
+		matrix::Vector<float, UKF_N_AUG_STATES> vector;
+	};
 
 	ukf_state_struct _ukf_states {};
 

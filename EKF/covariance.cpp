@@ -487,14 +487,20 @@ void Ekf::CalcSigmaPoints()
 	}
 
 	// Generate sigma points for the augmented state vector
-	//  TODO : For a more efficient implementation we should try to take advantage
-	// of sparseness in sPA and the fact that sqrt(L+lambda) is constant
 
 	// first column
-	for (int i = 0; i < UKF_N_STATES; i++) {
+	for (int i = 0; i < UKF_N_AUG_STATES; i++) {
 		// vehicle states
 		sigma_x_a(i,0) = x_a_prev(i);
 	}
 
-	// sigma_x_a = [x_a_prev, x_a_prev*ones(1,param.ukf.L)+sqrt(param.ukf.L+param.ukf.lambda)*sPA, x_a_prev*ones(1,param.ukf.L)-sqrt(param.ukf.L+param.ukf.lambda)*sPA];
+	// remaining columns
+	float temp_var1 = sqrtf((float)_ukf_L + _ukf_lambda);
+	for (int j = 0; j < UKF_N_AUG_STATES; j++) {
+		for (int i = 0; i < UKF_N_AUG_STATES; i++) {
+			float temp_var2 = temp_var1 * PA_UKF(i,j);
+			sigma_x_a(i,j+1) = x_a_prev(i) + temp_var2;
+			sigma_x_a(i,j+1+UKF_N_AUG_STATES) = x_a_prev(i) - temp_var2;
+		}
+	}
 }
