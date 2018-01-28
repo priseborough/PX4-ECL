@@ -88,7 +88,7 @@ void Ekf::initialiseCovariance()
 
 	// earth frame and body frame magnetic field
 	// set to observation variance
-	for (uint8_t index = 16; index <= 21; index ++) {
+	for (uint8_t index = 15; index <= 20; index ++) {
 		P_UKF(index,index) = sq(_params.mag_noise);
 	}
 
@@ -405,12 +405,12 @@ void Ekf::CalcSigmaPoints()
 	// Assemble the augmented covariance matrix
 	for (int i = 0; i < UKF_N_STATES; i++) {
 		for (int j = 0; j < UKF_N_STATES; j++) {
-			PA_UKF(i,j) = P_UKF(i,j);
+			SPA_UKF(i,j) = SP_UKF(i,j);
 		}
 	}
 	for (int i = 0; i < UKF_N_Q; i++) {
 		for (int j = 0; j < UKF_N_Q; j++) {
-			PA_UKF(i+UKF_N_STATES,j+UKF_N_STATES) = Q_UKF(i,j);
+			SPA_UKF(i+UKF_N_STATES,j+UKF_N_STATES) = SQ_UKF(i,j);
 		}
 	}
 
@@ -437,7 +437,7 @@ void Ekf::CalcSigmaPoints()
 	float temp_var1 = sqrtf((float)_ukf_L + _ukf_lambda);
 	for (int j = 0; j < UKF_N_AUG_STATES; j++) {
 		for (int i = 0; i < UKF_N_AUG_STATES; i++) {
-			float temp_var2 = temp_var1 * PA_UKF(i,j);
+			float temp_var2 = temp_var1 * SPA_UKF(i,j);
 			_sigma_x_a(i,j+1) = x_a_prev(i) + temp_var2;
 			_sigma_x_a(i,j+1+UKF_N_AUG_STATES) = x_a_prev(i) - temp_var2;
 		}

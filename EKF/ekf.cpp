@@ -46,6 +46,7 @@
 bool Ekf::init(uint64_t timestamp)
 {
 	bool ret = initialise_interface(timestamp);
+	_ukf_states.data.att.setZero();
 	_ukf_states.data.vel.setZero();
 	_ukf_states.data.pos.setZero();
 	_ukf_states.data.gyro_bias.setZero();
@@ -59,6 +60,7 @@ bool Ekf::init(uint64_t timestamp)
 	_output_new.vel.setZero();
 	_output_new.pos.setZero();
 	_output_new.quat_nominal.setZero();
+	_output_new.quat_nominal(0) = 1.0f;
 
 	_delta_angle_corr.setZero();
 	_imu_down_sampled.delta_ang.setZero();
@@ -239,6 +241,7 @@ bool Ekf::initialiseFilter()
 		_gps_alt_ref = 0.0f;
 
 		// Zero all of the states
+		_ukf_states.data.att.setZero();
 		_ukf_states.data.vel.setZero();
 		_ukf_states.data.pos.setZero();
 		_ukf_states.data.gyro_bias.setZero();
