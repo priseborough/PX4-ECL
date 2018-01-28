@@ -47,11 +47,9 @@
 
 void Ekf::initialiseCovariance()
 {
-	for (unsigned i = 0; i < UKF_N_STATES; i++) {
-		for (unsigned j = 0; j < UKF_N_STATES; j++) {
-			P_UKF(i,j) = 0.0f;
-		}
-	}
+	memset(&P_UKF, 0, sizeof(P_UKF));
+	memset(&Q_UKF, 0, sizeof(Q_UKF));
+	memset(&PA_UKF, 0, sizeof(PA_UKF));
 
 	// calculate average prediction time step in sec
 	float dt = 0.001f * (float)FILTER_UPDATE_PERIOD_MS;
@@ -461,5 +459,42 @@ void Ekf::resetWindCovariance()
 
 void Ekf::CalcSigmaPoints()
 {
+	// Calculate the lower diagonal Cholesky decomposition for the vehicle
+	// state covariance matrix. This requires nP^3 operations
+	SP_UKF = matrix::cholesky(P_UKF);
 
+	// Assemble the augmented covariance matrix
+	for (int i = 0; i < UKF_N_STATES; i++) {
+		for (int j = 0; j < UKF_N_STATES; j++) {
+			PA_UKF(i,j) = P_UKF(i,j);
+		}
+	}
+	for (int i = 0; i < UKF_N_Q; i++) {
+		for (int j = 0; j < UKF_N_Q; j++) {
+			PA_UKF(i+UKF_N_STATES,j+UKF_N_STATES) = Q_UKF(i,j);
+		}
+	}
+
+	// Expected value of augmented state vector from previous frame
+	matrix::Vector<float, UKF_N_AUG_STATES> x_a_prev;
+	for (int i = 0; i < UKF_N_STATES; i++) {
+		// vehicle states
+		x_a_prev(i) = _ukf_states.vector(i);
+	}
+	for (int i = UKF_N_STATES; i < UKF_N_AUG_STATES; i++) {
+		// IMU noise is zero mean
+		x_a_prev(i) = 0.0f;
+	}
+
+	// Generate sigma points for the augmented state vector
+	//  TODO : For a more efficient implementation we should try to take advantage
+	// of sparseness in sPA and the fact that sqrt(L+lambda) is constant
+
+	// first column
+	for (int i = 0; i < UKF_N_STATES; i++) {
+		// vehicle states
+		sigma_x_a(i,0) = x_a_prev(i);
+	}
+
+	// sigma_x_a = [x_a_prev, x_a_prev*ones(1,param.ukf.L)+sqrt(param.ukf.L+param.ukf.lambda)*sPA, x_a_prev*ones(1,param.ukf.L)-sqrt(param.ukf.L+param.ukf.lambda)*sPA];
 }

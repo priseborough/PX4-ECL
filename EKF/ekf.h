@@ -258,8 +258,13 @@ private:
 	matrix::SquareMatrix<float, UKF_N_STATES> SP_UKF;
 	matrix::SquareMatrix<float,6> Q_UKF; ///< control input noise covariance matrix
 	matrix::SquareMatrix<float, 6> SQ_UKF; ///< lower diagonal Cholesky decomposition for the input noise covariance matrix
+	matrix::SquareMatrix<float, UKF_N_AUG_STATES> PA_UKF; ///< augmented state covariance matrix
+	matrix::SquareMatrix<float, UKF_N_AUG_STATES> SPA_UKF; ///< lower diagonal Cholesky decomposition for the augmented state covariance matrix
+	matrix::Matrix<float, UKF_N_AUG_STATES, UKF_N_SIGMA> sigma_x_a; ///< augmented state vector sigma points
 
-	static constexpr uint8_t _k_num_states{24};		///< number of unaugmented states
+	ukf_state_struct _ukf_states {};
+
+	static constexpr uint8_t _k_num_states{24};		///< number of states
 
 	static constexpr float _k_earth_rate{0.000072921f};	///< earth spin rate (rad/sec)
 	static constexpr float _gravity_mss{9.80665f};		///< average earth gravity at sea level (m/sec**2)
