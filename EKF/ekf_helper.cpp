@@ -1175,6 +1175,21 @@ void Ekf::zeroCols(float (&cov_mat)[_k_num_states][_k_num_states], uint8_t first
 	}
 }
 
+void Ekf::zeroCovMat(uint8_t first, uint8_t last)
+{
+	uint8_t row;
+
+	// zero rows
+	for (row = first; row <= last; row++) {
+		memset(&P_UKF(row,0), 0, sizeof(P_UKF(0,0)) * 23);
+	}
+
+	// zero columns
+	for (row = 0; row <= 22; row++) {
+		memset(&P_UKF(row,first), 0, sizeof(P_UKF(0,0)) * (1 + last - first));
+	}
+}
+
 void Ekf::zeroOffDiag(float (&cov_mat)[_k_num_states][_k_num_states], uint8_t first, uint8_t last)
 {
 	// save diagonal elements
@@ -1191,17 +1206,6 @@ void Ekf::zeroOffDiag(float (&cov_mat)[_k_num_states][_k_num_states], uint8_t fi
 	// restore diagonals
 	for (row = first; row <= last; row++) {
 		cov_mat[row][row] = variances[row];
-	}
-}
-
-void Ekf::zeroCovMat(uint8_t first, uint8_t last)
-{
-	for (int row = 0; row <= 22; row++) {
-		for (int col = 0; col <= 22; col++) {
-			if ((row >= first && row <= last) || (col >= first && col <= last)) {
-				P_UKF(row,col) = 0.0f;
-			}
-		}
 	}
 }
 

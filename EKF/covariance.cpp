@@ -210,7 +210,6 @@ void Ekf::prediction()
 
 	// calculate an array of sigma points for the augmented state vector
 	CalcSigmaPoints();
-	sigma_points_are_stale = false;
 
 	// convert the attitude error vector sigma points to equivalent delta quaternions
 	Quatf dq[UKF_N_SIGMA];
@@ -401,7 +400,7 @@ void Ekf::resetWindCovariance()
 void Ekf::CalcSigmaPoints()
 {
 	// Calculate the lower diagonal Cholesky decomposition for the vehicle
-	// state covariance matrix. This requires nP^3 operations
+	// state covariance matrix. This requires UKF_N_STATES^3 operations
 	SP_UKF = matrix::cholesky(P_UKF);
 
 	// Assemble the augmented covariance matrix
@@ -444,4 +443,6 @@ void Ekf::CalcSigmaPoints()
 			_sigma_x_a(i,j+1+UKF_N_AUG_STATES) = x_a_prev(i) - temp_var2;
 		}
 	}
+
+	sigma_points_are_stale = false;
 }
