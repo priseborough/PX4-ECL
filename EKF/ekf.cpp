@@ -331,13 +331,13 @@ void Ekf::predictSigmaPoints()
 	for (uint8_t s=0; s<UKF_N_SIGMA; s++) {
 		// copy sigma point to local state vector
 		for (uint8_t i=0; i<UKF_N_AUG_STATES; i++) {
-			_ukf_states.vector(i) = _sigma_x_a(i,s);
+			_ukf_states_local.vector(i) = _sigma_x_a(i,s);
 		}
-		_ukf_states.data.quat = _sigma_quat[s];
+		_ukf_states_local.data.quat = _sigma_quat[s];
 
 		// apply imu bias corrections
-		Vector3f corrected_delta_ang = _imu_sample_delayed.delta_ang - _ukf_states.data.gyro_bias;
-		Vector3f corrected_delta_vel = _imu_sample_delayed.delta_vel - _ukf_states.data.accel_bias;
+		Vector3f corrected_delta_ang = _imu_sample_delayed.delta_ang - _ukf_states_local.data.gyro_bias;
+		Vector3f corrected_delta_vel = _imu_sample_delayed.delta_vel - _ukf_states_local.data.accel_bias;
 
 		// correct delta angles for earth rotation rate
 		corrected_delta_ang -= -_R_to_earth.transpose() * _earth_rate_NED * _imu_sample_delayed.delta_ang_dt;
@@ -347,16 +347,16 @@ void Ekf::predictSigmaPoints()
 		dq.from_axis_angle(corrected_delta_ang);
 
 		// rotate the previous quaternion by the delta quaternion using a quaternion multiplication
-		_ukf_states.data.quat = _ukf_states.data.quat * dq;
+		_ukf_states_local.data.quat = _ukf_states_local.data.quat * dq;
 
 		// quaternions must be normalised whenever they are modified
-		_ukf_states.data.quat.normalize();
+		_ukf_states_local.data.quat.normalize();
 
 		// save the previous value of velocity so we can use trapzoidal integration
-		Vector3f vel_last = _ukf_states.data.vel;
+		Vector3f vel_last = _ukf_states_local.data.vel;
 
 		// update transformation matrix from body to world frame
-		_R_to_earth = quat_to_invrotmat(_ukf_states.data.quat);
+		_R_to_earth = quat_to_invrotmat(_ukf_states_local.data.quat);
 
 		// Calculate an earth frame delta velocity
 		Vector3f corrected_delta_vel_ef = _R_to_earth * corrected_delta_vel;
@@ -370,19 +370,19 @@ void Ekf::predictSigmaPoints()
 		}
 
 		// calculate the increment in velocity using the current orientation
-		_ukf_states.data.vel += corrected_delta_vel_ef;
+		_ukf_states_local.data.vel += corrected_delta_vel_ef;
 
 		// compensate for acceleration due to gravity
-		_ukf_states.data.vel(2) += _gravity_mss * _imu_sample_delayed.delta_vel_dt;
+		_ukf_states_local.data.vel(2) += _gravity_mss * _imu_sample_delayed.delta_vel_dt;
 
 		// predict position states via trapezoidal integration of velocity
-		_ukf_states.data.pos += (vel_last + _ukf_states.data.vel) * _imu_sample_delayed.delta_vel_dt * 0.5f;
+		_ukf_states_local.data.pos += (vel_last + _ukf_states_local.data.vel) * _imu_sample_delayed.delta_vel_dt * 0.5f;
 
 		// copy local state vector to sigma point
 		for (uint8_t i=0; i<UKF_N_AUG_STATES; i++) {
-			_sigma_x_a(i,s) = _ukf_states.vector(i);
+			_sigma_x_a(i,s) = _ukf_states_local.vector(i);
 		}
-		_sigma_quat[s] = _ukf_states.data.quat;
+		_sigma_quat[s] = _ukf_states_local.data.quat;
 
 	}
 

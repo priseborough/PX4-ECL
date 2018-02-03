@@ -49,7 +49,7 @@ void Ekf::initialiseCovariance()
 {
 	memset(&P_UKF, 0, sizeof(P_UKF));
 	memset(&Q_UKF, 0, sizeof(Q_UKF));
-	memset(&PA_UKF, 0, sizeof(PA_UKF));
+	memset(&SPA_UKF, 0, sizeof(SPA_UKF));
 
 	// calculate average prediction time step in sec
 	float dt = 0.001f * (float)FILTER_UPDATE_PERIOD_MS;
@@ -213,16 +213,14 @@ void Ekf::prediction()
 
 	// convert the attitude error vector sigma points to equivalent delta quaternions
 	// Don't calculate the first column - it is zero by definition and not used
-	Quatf dq[UKF_N_SIGMA];
+	Quatf dq_sigma[UKF_N_SIGMA];
 	float normsigmaX2;
-	Quatf q_temp;
 	for (uint8_t s=1; s<(2*_ukf_L); s++) {
 		normsigmaX2 = sq(_sigma_x_a(0,s)) + sq(_sigma_x_a(1,s)) + sq(_sigma_x_a(2,s));
-		q_temp(0) = (-_grp_a * normsigmaX2 + _grp_f*sqrtf( sq(_grp_f) + (1.0f - sq(_grp_a)) * normsigmaX2)) / (sq(_grp_f) + normsigmaX2);
+		dq_sigma[s](0) = (-_grp_a * normsigmaX2 + _grp_f*sqrtf( sq(_grp_f) + (1.0f - sq(_grp_a)) * normsigmaX2)) / (sq(_grp_f) + normsigmaX2);
 		for (uint8_t i=0; i<3; i++) {
-			q_temp(i+1) = (_grp_a + q_temp(0)) * _sigma_x_a(i,s) / _grp_f;
+			dq_sigma[s](i+1) = (_grp_a + dq_sigma[s](0)) * _sigma_x_a(i,s) / _grp_f;
 		}
-		dq[s] = q_temp;
 	}
 
 	// Apply the delta quaternions to the previous estimate to calculate the
@@ -232,27 +230,27 @@ void Ekf::prediction()
 	// when the covariance information needs to be extracted.
 	 _sigma_quat[0] = _ukf_states.data.quat;
 	 for (uint8_t s=1; s<(2*_ukf_L); s++) {
-	     _sigma_quat[s] = dq[s] * _sigma_quat[s];
+	     _sigma_quat[s] = dq_sigma[s] * _sigma_quat[s];
 	 }
 
 	// Propagate each sigma point forward using the INS equations
 	predictSigmaPoints();
 
 	// Use the sigma points to calculate the mean state vector and the covariances
-	// Store the quaternion state estimate
-	// The attitude error is zero mean by definition so we do not need to
-	// calculate the mean from the sigma points
+
+	// The zero perturbation sigma points which represent the nominal expected value are propagated as the state vector
 	for (uint8_t i=0; i<UKF_N_AUG_STATES; i++) {
 		_ukf_states.vector(i) = _sigma_x_a(i,0);
 	}
 	_ukf_states.data.quat = _sigma_quat[0];
-	_ukf_states_mean.data.quat = _sigma_quat[0];
 
 	// Convert propagated quaternions to delta quaternions around the
-	// expected value
+	// nominal expected value
 	Quatf sigma_dq[UKF_N_SIGMA];
-	Quatf qm_inverse = _ukf_states_mean.data.quat.inversed();
-	for (uint8_t s=0; s<UKF_N_SIGMA; s++) {
+	Quatf qm_inverse = _sigma_quat[0].inversed();
+	sigma_dq[0](0) = 1.0f;
+	sigma_dq[0](3) = sigma_dq[0](2) = sigma_dq[0](1) = 0.0f;
+	for (uint8_t s=1; s<UKF_N_SIGMA; s++) {
 	    sigma_dq[s] = _sigma_quat[s] * qm_inverse;
 	}
 
@@ -278,17 +276,16 @@ void Ekf::prediction()
 	memset(&P_UKF, 0, sizeof(P_UKF));
 	for (uint8_t s=0; s<UKF_N_SIGMA; s++) {
 		// P = P + param.ukf.wc(i)*(sigma_x_a(1:param.ukf.nP,s) - x_m)*(sigma_x_a(1:param.ukf.nP,s) - x_m)';
-		float temp_val[UKF_N_STATES];
+		float state_delta[UKF_N_STATES];
 		for (uint8_t i=0; i<UKF_N_STATES; i++) {
-			temp_val[i] = _sigma_x_a(i,s) - _ukf_states_mean.vector(i);
+			state_delta[i] = _sigma_x_a(i,s) - _ukf_states_mean.vector(i);
 		}
 		for (uint8_t i=0; i<UKF_N_STATES; i++) {
 			for (uint8_t j=0; j<UKF_N_STATES; j++) {
-				P_UKF(i,j) = _ukf_wc[s] * temp_val[i] * temp_val[j];
+				P_UKF(i,j) = _ukf_wc[s] * state_delta[i] * state_delta[j];
 			}
 		}
 	}
-
 
 	// fix gross errors in the covariance matrix
 	fixCovarianceErrors();
@@ -427,7 +424,7 @@ void Ekf::CalcSigmaPoints()
 
 	// Generate sigma points for the augmented state vector
 
-	// first column
+	// first column represents expected value (zero delta)
 	for (int i = 0; i < UKF_N_AUG_STATES; i++) {
 		// vehicle states
 		_sigma_x_a(i,0) = x_a_prev(i);

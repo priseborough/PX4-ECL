@@ -261,7 +261,6 @@ private:
 	matrix::SquareMatrix<float, UKF_N_STATES> SP_UKF;
 	matrix::SquareMatrix<float,6> Q_UKF; ///< control input noise covariance matrix
 	matrix::SquareMatrix<float, 6> SQ_UKF; ///< lower diagonal Cholesky decomposition for the input noise covariance matrix
-	matrix::SquareMatrix<float, UKF_N_AUG_STATES> PA_UKF; ///< augmented state covariance matrix
 	matrix::SquareMatrix<float, UKF_N_AUG_STATES> SPA_UKF; ///< lower diagonal Cholesky decomposition for the augmented state covariance matrix
 	matrix::Matrix<float, UKF_N_AUG_STATES, UKF_N_SIGMA> _sigma_x_a; ///< augmented state vector sigma points
 
@@ -278,13 +277,14 @@ private:
 			Vector2f    wind_vel;	///< wind velocity in m/s
 			Vector3f    dang_err;	///< delta angle error (rad)
 			Vector3f    dvel_err;	///< delta velocity error (m/s)
-			Quatf       quat;	///< quaternion
+			Quatf       quat;	///< quaternion (not part of the augmented state vector but added for convencience)
 		} data;
-		matrix::Vector<float, UKF_N_AUG_STATES> vector;
+		matrix::Vector<float, 33> vector;
 	};
 
-	ukf_state_struct _ukf_states {};
-	ukf_state_struct _ukf_states_mean {};
+	ukf_state_struct _ukf_states {};	///< state vector estimate
+	ukf_state_struct _ukf_states_mean {};	///< mean value of state vector used for covariance prediction
+	ukf_state_struct _ukf_states_local {};	///< UKF state vector local to sigma point prediction
 	Quatf _sigma_quat[UKF_N_SIGMA] {};
 
 	// UKF misc variables
