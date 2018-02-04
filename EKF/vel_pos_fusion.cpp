@@ -154,6 +154,10 @@ void Ekf::fuseVelPosHeight()
 		_vel_pos_innov[5] = innovation[5];
 	}
 
+	if (_sigma_points_are_stale) {
+		CalcSigmaPoints();
+	}
+
 	// copy each velocity and position sigma point to an equivalent observation sigma point
 	for (int s=0; s<UKF_N_SIGMA; s++) {
 		for (int i=0; i<6; i++) {
