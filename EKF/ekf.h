@@ -288,7 +288,7 @@ private:
 	Quatf _sigma_quat[UKF_N_SIGMA] {};
 
 	// UKF misc variables
-	bool sigma_points_are_stale{false};
+	bool _sigma_points_are_stale{false};
 
 	static constexpr uint8_t _k_num_states{24};		///< number of states
 

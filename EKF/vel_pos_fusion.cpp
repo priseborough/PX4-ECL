@@ -33,10 +33,8 @@
 
 /**
  * @file vel_pos_fusion.cpp
- * Function for fusing gps and baro measurements/
+ * Function for fusion of direct observations of  velocity and position states/
  *
- * @author Roman Bast <bapstroman@gmail.com>
- * @author Siddharth Bharat Purohit <siddharthbharatpurohit@gmail.com>
  * @author Paul Riseborough <p_riseborough@live.com.au>
  *
  */
@@ -52,6 +50,7 @@ void Ekf::fuseVelPosHeight()
 	float gate_size[6] = {}; // innovation consistency check gate sizes for [VN,VE,VD,PN,PE,PD] observations
 	float Kfusion[24] = {}; // Kalman gain vector for any single observation - sequential fusion is used
 	float innovation[6]; // local copy of innovations for  [VN,VE,VD,PN,PE,PD]
+	float sigma_y[UKF_N_SIGMA][6]; // velocity and position observations at each sigma point
 	memcpy(innovation, _vel_pos_innov, sizeof(_vel_pos_innov));
 
 	// calculate innovations, innovations gate sizes and observation variances
@@ -97,7 +96,7 @@ void Ekf::fuseVelPosHeight()
 		if (_control_status.flags.baro_hgt) {
 			fuse_map[5] = true;
 			// vertical position innovation - baro measurement has opposite sign to earth z axis
-			innovation[5] = _state.pos(2) + _baro_sample_delayed.hgt - _baro_hgt_offset - _hgt_sensor_offset;
+			innovation[5] = _ukf_states.data.pos(2) + _baro_sample_delayed.hgt - _baro_hgt_offset - _hgt_sensor_offset;
 			// observation variance - user parameter defined
 			R[5] = fmaxf(_params.baro_noise, 0.01f);
 			R[5] = R[5] * R[5];
@@ -121,7 +120,7 @@ void Ekf::fuseVelPosHeight()
 		} else if (_control_status.flags.gps_hgt) {
 			fuse_map[5] = true;
 			// vertical position innovation - gps measurement has opposite sign to earth z axis
-			innovation[5] = _state.pos(2) + _gps_sample_delayed.hgt - _gps_alt_ref - _hgt_sensor_offset;
+			innovation[5] = _ukf_states.data.pos(2) + _gps_sample_delayed.hgt - _gps_alt_ref - _hgt_sensor_offset;
 			// observation variance - receiver defined and parameter limited
 			// use scaled horizontal position accuracy assuming typical ratio of VDOP/HDOP
 			float lower_limit = fmaxf(_params.gps_pos_noise, 0.01f);
@@ -134,7 +133,7 @@ void Ekf::fuseVelPosHeight()
 		} else if (_control_status.flags.rng_hgt && (_R_rng_to_earth_2_2 > _params.range_cos_max_tilt)) {
 			fuse_map[5] = true;
 			// use range finder with tilt correction
-			innovation[5] = _state.pos(2) - (-math::max(_range_sample_delayed.rng * _R_rng_to_earth_2_2,
+			innovation[5] = _ukf_states.data.pos(2) - (-math::max(_range_sample_delayed.rng * _R_rng_to_earth_2_2,
 							     _params.rng_gnd_clearance)) - _hgt_sensor_offset;
 			// observation variance - user parameter defined
 			R[5] = fmaxf((sq(_params.range_noise) + sq(_params.range_noise_scaler * _range_sample_delayed.rng)) * sq(_R_rng_to_earth_2_2), 0.01f);
@@ -143,7 +142,7 @@ void Ekf::fuseVelPosHeight()
 		} else if (_control_status.flags.ev_hgt) {
 			fuse_map[5] = true;
 			// calculate the innovation assuming the external vision observaton is in local NED frame
-			innovation[5] = _state.pos(2) - _ev_sample_delayed.posNED(2);
+			innovation[5] = _ukf_states.data.pos(2) - _ev_sample_delayed.posNED(2);
 			// observation variance - defined externally
 			R[5] = fmaxf(_ev_sample_delayed.posErr, 0.01f);
 			R[5] = R[5] * R[5];
@@ -155,6 +154,32 @@ void Ekf::fuseVelPosHeight()
 		_vel_pos_innov[5] = innovation[5];
 	}
 
+	// copy each velocity and position sigma point to an equivalent observation sigma point
+	for (int s=0; s<UKF_N_SIGMA; s++) {
+		for (int i=0; i<6; i++) {
+			sigma_y[s][i] = _sigma_x_a(i+3,s);
+		}
+	}
+
+	// Calculate covariance of predicted output
+	// and cross-covariance between state and output
+	float Pyy[6];
+	float Pxy[6][UKF_N_STATES] = {};
+	for (int obs_index=0; obs_index<6; obs_index++) { // loop through observations
+		if (!fuse_map[obs_index]) {
+			continue;
+		}
+		Pyy[obs_index] = R[obs_index];
+		for (int sigma_index=0; sigma_index<UKF_N_SIGMA; sigma_index++) { // lopo through sigma points
+			//Pyy +=  param.ukf.wc(s)*(psi_m(:,s) - y_m)*(psi_m(:,s) - y_m)';
+			Pyy[obs_index] += _ukf_wc[sigma_index] * sq(sigma_y[sigma_index][obs_index] - sigma_y[0][obs_index]);
+			for (int state_index=0; state_index<UKF_N_STATES; state_index++) { // loop through states
+				//Pxy += param.ukf.wc(s)*(sigma_x_a(1:param.ukf.nP,si) - x_m)*(psi_m(:,s) - y_m)';
+				Pxy[obs_index][state_index] += _ukf_wc[sigma_index] * (_sigma_x_a(state_index,sigma_index) - _sigma_x_a(state_index,0)) * (sigma_y[sigma_index][obs_index] - sigma_y[0][obs_index]);
+			}
+		}
+	}
+
 	// calculate innovation test ratios
 	for (unsigned obs_index = 0; obs_index < 6; obs_index++) {
 		if (fuse_map[obs_index]) {
@@ -162,8 +187,7 @@ void Ekf::fuseVelPosHeight()
 			unsigned state_index = obs_index + 4;	// we start with vx and this is the 4. state
 			_vel_pos_innov_var[obs_index] = P[state_index][state_index] + R[obs_index];
 			// Compute the ratio of innovation to gate size
-			_vel_pos_test_ratio[obs_index] = sq(innovation[obs_index]) / (sq(gate_size[obs_index]) *
-							 _vel_pos_innov_var[obs_index]);
+			_vel_pos_test_ratio[obs_index] = sq(innovation[obs_index]) / (sq(gate_size[obs_index]) * Pyy[obs_index]);
 		}
 	}
 
@@ -215,29 +239,26 @@ void Ekf::fuseVelPosHeight()
 			continue;
 		}
 
-		unsigned state_index = obs_index + 4;	// we start with vx and this is the 4. state
-
-		// calculate kalman gain K = PHS, where S = 1/innovation variance
-		for (int row = 0; row < _k_num_states; row++) {
-			Kfusion[row] = P[row][state_index] / _vel_pos_innov_var[obs_index];
+		// calculate kalman gain
+		for (int row = 0; row < UKF_N_STATES; row++) {
+			Kfusion[row] = Pxy[obs_index][row] / Pyy[obs_index];
 		}
 
-		// update covarinace matrix via Pnew = (I - KH)P
-		float KHP[_k_num_states][_k_num_states];
-		for (unsigned row = 0; row < _k_num_states; row++) {
-			for (unsigned column = 0; column < _k_num_states; column++) {
-				KHP[row][column] = Kfusion[row] * P[state_index][column];
+		// update covariance matrix via P = P - K*Pyy*K'
+		float KPK[UKF_N_STATES][UKF_N_STATES];
+		for (unsigned row = 0; row < UKF_N_STATES; row++) {
+			for (unsigned column = 0; column < UKF_N_STATES; column++) {
+				KPK[row][column] = Kfusion[row] * Pyy[obs_index] * Kfusion[column];
 			}
 		}
 
 		// if the covariance correction will result in a negative variance, then
-		// the covariance marix is unhealthy and must be corrected
+		// the covariance matrix is unhealthy and must be corrected
 		bool healthy = true;
-		for (int i = 0; i < _k_num_states; i++) {
-			if (P[i][i] < KHP[i][i]) {
+		for (int i = 0; i < UKF_N_STATES; i++) {
+			if (P_UKF(i,i) < KPK[i][i]) {
 				// zero rows and columns
-				zeroRows(P,i,i);
-				zeroCols(P,i,i);
+				zeroCovMat(i,i);
 
 				//flag as unhealthy
 				healthy = false;
@@ -277,11 +298,12 @@ void Ekf::fuseVelPosHeight()
 		// only apply covariance and state corrrections if healthy
 		if (healthy) {
 			// apply the covariance corrections
-			for (unsigned row = 0; row < _k_num_states; row++) {
-				for (unsigned column = 0; column < _k_num_states; column++) {
-					P[row][column] = P[row][column] - KHP[row][column];
+			for (unsigned row = 0; row < UKF_N_STATES; row++) {
+				for (unsigned column = 0; column < UKF_N_STATES; column++) {
+					P_UKF(row,column) -= KPK[row][column];
 				}
 			}
+			_sigma_points_are_stale = true;
 
 			// correct the covariance marix for gross errors
 			fixCovarianceErrors();

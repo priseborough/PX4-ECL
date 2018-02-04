@@ -440,5 +440,5 @@ void Ekf::CalcSigmaPoints()
 		}
 	}
 
-	sigma_points_are_stale = false;
+	_sigma_points_are_stale = false;
 }
