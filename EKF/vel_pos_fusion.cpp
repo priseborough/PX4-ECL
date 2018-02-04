@@ -50,7 +50,6 @@ void Ekf::fuseVelPosHeight()
 	float gate_size[6] = {}; // innovation consistency check gate sizes for [VN,VE,VD,PN,PE,PD] observations
 	float Kfusion[24] = {}; // Kalman gain vector for any single observation - sequential fusion is used
 	float innovation[6]; // local copy of innovations for  [VN,VE,VD,PN,PE,PD]
-	float sigma_y[UKF_N_SIGMA][6]; // velocity and position observations at each sigma point
 	memcpy(innovation, _vel_pos_innov, sizeof(_vel_pos_innov));
 
 	// calculate innovations, innovations gate sizes and observation variances
@@ -158,15 +157,7 @@ void Ekf::fuseVelPosHeight()
 		CalcSigmaPoints();
 	}
 
-	// copy each velocity and position sigma point to an equivalent observation sigma point
-	for (int s=0; s<UKF_N_SIGMA; s++) {
-		for (int i=0; i<6; i++) {
-			sigma_y[s][i] = _sigma_x_a(i+3,s);
-		}
-	}
-
-	// Calculate covariance of predicted output
-	// and cross-covariance between state and output
+	// Calculate covariance of predicted output and cross-covariance between state and output taking advantae of direct state observation
 	float Pyy[6];
 	float Pxy[6][UKF_N_STATES] = {};
 	for (int obs_index=0; obs_index<6; obs_index++) { // loop through observations
@@ -176,10 +167,10 @@ void Ekf::fuseVelPosHeight()
 		Pyy[obs_index] = R[obs_index];
 		for (int sigma_index=0; sigma_index<UKF_N_SIGMA; sigma_index++) { // lopo through sigma points
 			//Pyy +=  param.ukf.wc(s)*(psi_m(:,s) - y_m)*(psi_m(:,s) - y_m)';
-			Pyy[obs_index] += _ukf_wc[sigma_index] * sq(sigma_y[sigma_index][obs_index] - sigma_y[0][obs_index]);
+			Pyy[obs_index] += _ukf_wc[sigma_index] * sq(_sigma_x_a(obs_index+3,sigma_index) - _sigma_x_a(obs_index+3,0));
 			for (int state_index=0; state_index<UKF_N_STATES; state_index++) { // loop through states
 				//Pxy += param.ukf.wc(s)*(sigma_x_a(1:param.ukf.nP,si) - x_m)*(psi_m(:,s) - y_m)';
-				Pxy[obs_index][state_index] += _ukf_wc[sigma_index] * (_sigma_x_a(state_index,sigma_index) - _sigma_x_a(state_index,0)) * (sigma_y[sigma_index][obs_index] - sigma_y[0][obs_index]);
+				Pxy[obs_index][state_index] += _ukf_wc[sigma_index] * (_sigma_x_a(state_index,sigma_index) - _sigma_x_a(state_index,0)) * (_sigma_x_a(obs_index+3,sigma_index) - _sigma_x_a(obs_index+3,0));
 			}
 		}
 	}
