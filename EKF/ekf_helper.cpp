@@ -1117,13 +1117,23 @@ void Ekf::get_ekf_soln_status(uint16_t *status)
 	*status = soln_status.value;
 }
 
-// fuse measurement
+// update state vector using single observation innovation
 void Ekf::fuse(float *K, float innovation)
 {
 	for (unsigned i = 0; i < 3; i++) {
 		_ukf_states.data.att(i) = _ukf_states.data.att(i) - K[i] * innovation;
 	}
 
+	// Calculate the quaternion correction from the attitude error vector
+	float normdp2 = sq(_ukf_states.data.att(0)) + sq(_ukf_states.data.att(1)) + sq(_ukf_states.data.att(2));
+	Quatf dq;
+	dq(0) = (-_grp_a * normdp2 + _grp_f*sqrtf( sq(_grp_f) + (1.0f - sq(_grp_a)) * normdp2)) / (sq(_grp_f) + normdp2);
+	for (uint8_t i=0; i<3; i++) {
+		dq(i+1) = (_grp_a + dq(0)) * _ukf_states.data.att(i) / _grp_f;
+	}
+
+	// apply the correction to the stored quaternion state and renormalize
+	_ukf_states.data.quat = dq * _ukf_states.data.quat;
 	_ukf_states.data.quat.normalize();
 
 	for (unsigned i = 0; i < 3; i++) {
