@@ -211,28 +211,6 @@ void Ekf::prediction()
 	// calculate an array of sigma points for the augmented state vector
 	CalcSigmaPoints();
 
-	// convert the attitude error vector sigma points to equivalent delta quaternions
-	// Don't calculate the first column - it is zero by definition and not used
-	Quatf dq_sigma[UKF_N_SIGMA];
-	float normsigmaX2;
-	for (uint8_t s=1; s<(2*_ukf_L); s++) {
-		normsigmaX2 = sq(_sigma_x_a(0,s)) + sq(_sigma_x_a(1,s)) + sq(_sigma_x_a(2,s));
-		dq_sigma[s](0) = (-_grp_a * normsigmaX2 + _grp_f*sqrtf( sq(_grp_f) + (1.0f - sq(_grp_a)) * normsigmaX2)) / (sq(_grp_f) + normsigmaX2);
-		for (uint8_t i=0; i<3; i++) {
-			dq_sigma[s](i+1) = (_grp_a + dq_sigma[s](0)) * _sigma_x_a(i,s) / _grp_f;
-		}
-	}
-
-	// Apply the delta quaternions to the previous estimate to calculate the
-	// quaternion sigma points. Although we could propagate the delta angles
-	// through the vehicle state prediction, it is more accurate to use
-	// quaternions and convert back to a set of GRP attitude error vectors
-	// when the covariance information needs to be extracted.
-	 _sigma_quat[0] = _ukf_states.data.quat;
-	 for (uint8_t s=1; s<(2*_ukf_L); s++) {
-	     _sigma_quat[s] = dq_sigma[s] * _sigma_quat[0];
-	 }
-
 	// Propagate each sigma point forward using the INS equations
 	predictSigmaPoints();
 
@@ -438,6 +416,25 @@ void Ekf::CalcSigmaPoints()
 			_sigma_x_a(i,j+1) = x_a_prev(i) + temp_var2;
 			_sigma_x_a(i,j+1+UKF_N_AUG_STATES) = x_a_prev(i) - temp_var2;
 		}
+	}
+
+	// convert the attitude error vector sigma points to equivalent delta quaternions
+	Quatf dq_sigma[UKF_N_SIGMA];
+	dq_sigma[0](0) = 1.0f;
+	dq_sigma[0](1) = dq_sigma[0](2) = dq_sigma[0](3) = 0.0f;
+	float normsigmaX2;
+	for (uint8_t s=1; s<(2*_ukf_L); s++) {
+		normsigmaX2 = sq(_sigma_x_a(0,s)) + sq(_sigma_x_a(1,s)) + sq(_sigma_x_a(2,s));
+		dq_sigma[s](0) = (-_grp_a * normsigmaX2 + _grp_f*sqrtf( sq(_grp_f) + (1.0f - sq(_grp_a)) * normsigmaX2)) / (sq(_grp_f) + normsigmaX2);
+		for (uint8_t i=0; i<3; i++) {
+			dq_sigma[s](i+1) = (_grp_a + dq_sigma[s](0)) * _sigma_x_a(i,s) / _grp_f;
+		}
+	}
+
+	// Apply the delta quaternions to the previous estimate to calculate the quaternion sigma points.
+	_sigma_quat[0] = _ukf_states.data.quat;
+	for (uint8_t s=1; s<(2*_ukf_L); s++) {
+	    _sigma_quat[s] = dq_sigma[s] * _sigma_quat[0];
 	}
 
 	_sigma_points_are_stale = false;
