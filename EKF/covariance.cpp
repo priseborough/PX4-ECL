@@ -230,7 +230,7 @@ void Ekf::prediction()
 	// when the covariance information needs to be extracted.
 	 _sigma_quat[0] = _ukf_states.data.quat;
 	 for (uint8_t s=1; s<(2*_ukf_L); s++) {
-	     _sigma_quat[s] = dq_sigma[s] * _sigma_quat[s];
+	     _sigma_quat[s] = dq_sigma[s] * _sigma_quat[0];
 	 }
 
 	// Propagate each sigma point forward using the INS equations
