@@ -115,12 +115,12 @@ void Ekf::controlFusionModes()
 	controlHeightSensorTimeouts();
 
 	// control use of observations for aiding
-	controlMagFusion();
-	controlOpticalFlowFusion();
+	//controlMagFusion();
+	//controlOpticalFlowFusion();
 	controlGpsFusion();
-	controlAirDataFusion();
-	controlBetaFusion();
-	controlDragFusion();
+	//controlAirDataFusion();
+	//controlBetaFusion();
+	//controlDragFusion();
 	controlHeightFusion();
 
 	// For efficiency, fusion of direct state observations for position and velocity is performed sequentially
@@ -128,10 +128,10 @@ void Ekf::controlFusionModes()
 	controlVelPosFusion();
 
 	// Additional data from an external vision pose estimator can be fused.
-	controlExternalVisionFusion();
+	//controlExternalVisionFusion();
 
 	// Additional NE velocity data from an auxiliary sensor can be fused
-	controlAuxVelFusion();
+	//controlAuxVelFusion();
 
 	// report dead reckoning if we are no longer fusing measurements that directly constrain velocity drift
 	_is_dead_reckoning = (_time_last_imu - _time_last_pos_fuse > _params.no_aid_timeout_max)
