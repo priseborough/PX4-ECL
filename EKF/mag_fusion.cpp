@@ -414,176 +414,8 @@ void Ekf::fuseMag()
 
 void Ekf::fuseHeading()
 {
-	// assign intermediate state variables
-	float q0 = _state.quat_nominal(0);
-	float q1 = _state.quat_nominal(1);
-	float q2 = _state.quat_nominal(2);
-	float q3 = _state.quat_nominal(3);
-
 	float R_YAW = 1.0f;
-	float predicted_hdg;
-	float H_YAW[4];
 	Vector3f mag_earth_pred;
-	float measured_hdg;
-
-	// determine if a 321 or 312 Euler sequence is best
-	if (fabsf(_R_to_earth(2, 0)) < fabsf(_R_to_earth(2, 1))) {
-		// calculate observation jacobian when we are observing the first rotation in a 321 sequence
-		float t9 = q0*q3;
-		float t10 = q1*q2;
-		float t2 = t9+t10;
-		float t3 = q0*q0;
-		float t4 = q1*q1;
-		float t5 = q2*q2;
-		float t6 = q3*q3;
-		float t7 = t3+t4-t5-t6;
-		float t8 = t7*t7;
-		if (t8 > 1e-6f) {
-			t8 = 1.0f/t8;
-		} else {
-			return;
-		}
-		float t11 = t2*t2;
-		float t12 = t8*t11*4.0f;
-		float t13 = t12+1.0f;
-		float t14;
-		if (fabsf(t13) > 1e-6f) {
-			t14 = 1.0f/t13;
-		} else {
-			return;
-		}
-
-		H_YAW[0] = t8*t14*(q3*t3-q3*t4+q3*t5+q3*t6+q0*q1*q2*2.0f)*-2.0f;
-		H_YAW[1] = t8*t14*(-q2*t3+q2*t4+q2*t5+q2*t6+q0*q1*q3*2.0f)*-2.0f;
-		H_YAW[2] = t8*t14*(q1*t3+q1*t4+q1*t5-q1*t6+q0*q2*q3*2.0f)*2.0f;
-		H_YAW[3] = t8*t14*(q0*t3+q0*t4-q0*t5+q0*t6+q1*q2*q3*2.0f)*2.0f;
-
-		// rotate the magnetometer measurement into earth frame
-		Eulerf euler321(_state.quat_nominal);
-		predicted_hdg = euler321(2); // we will need the predicted heading to calculate the innovation
-
-		// calculate the observed yaw angle
-		if (_control_status.flags.mag_hdg) {
-			// Set the yaw angle to zero and rotate the measurements into earth frame using the zero yaw angle
-			euler321(2) = 0.0f;
-			Dcmf R_to_earth(euler321);
-
-			// rotate the magnetometer measurements into earth frame using a zero yaw angle
-			if (_control_status.flags.mag_3D) {
-				// don't apply bias corrections if we are learning them
-				mag_earth_pred = R_to_earth * _mag_sample_delayed.mag;
-			} else {
-				mag_earth_pred = R_to_earth * (_mag_sample_delayed.mag - _state.mag_B);
-			}
-
-			// the angle of the projection onto the horizontal gives the yaw angle
-			measured_hdg = -atan2f(mag_earth_pred(1), mag_earth_pred(0)) + _mag_declination;
-
-		} else if (_control_status.flags.ev_yaw) {
-			// calculate the yaw angle for a 321 sequence
-			// Expressions obtained from yaw_input_321.c produced by https://github.com/PX4/ecl/blob/master/matlab/scripts/Inertial%20Nav%20EKF/quat2yaw321.m
-			float Tbn_1_0 = 2.0f*(_ev_sample_delayed.quat(0)*_ev_sample_delayed.quat(3)+_ev_sample_delayed.quat(1)*_ev_sample_delayed.quat(2));
-			float Tbn_0_0 = sq(_ev_sample_delayed.quat(0))+sq(_ev_sample_delayed.quat(1))-sq(_ev_sample_delayed.quat(2))-sq(_ev_sample_delayed.quat(3));
-			measured_hdg = atan2f(Tbn_1_0,Tbn_0_0);
-
-		} else {
-			// there is no yaw observation
-			return;
-		}
-
-	} else {
-		// calculate observaton jacobian when we are observing a rotation in a 312 sequence
-		float t9 = q0*q3;
-		float t10 = q1*q2;
-		float t2 = t9-t10;
-		float t3 = q0*q0;
-		float t4 = q1*q1;
-		float t5 = q2*q2;
-		float t6 = q3*q3;
-		float t7 = t3-t4+t5-t6;
-		float t8 = t7*t7;
-		if (t8 > 1e-6f) {
-			t8 = 1.0f/t8;
-		} else {
-			return;
-		}
-		float t11 = t2*t2;
-		float t12 = t8*t11*4.0f;
-		float t13 = t12+1.0f;
-		float t14;
-		if (fabsf(t13) > 1e-6f) {
-			t14 = 1.0f/t13;
-		} else {
-			return;
-		}
-
-		H_YAW[0] = t8*t14*(q3*t3+q3*t4-q3*t5+q3*t6-q0*q1*q2*2.0f)*-2.0f;
-		H_YAW[1] = t8*t14*(q2*t3+q2*t4+q2*t5-q2*t6-q0*q1*q3*2.0f)*-2.0f;
-		H_YAW[2] = t8*t14*(-q1*t3+q1*t4+q1*t5+q1*t6-q0*q2*q3*2.0f)*2.0f;
-		H_YAW[3] = t8*t14*(q0*t3-q0*t4+q0*t5+q0*t6-q1*q2*q3*2.0f)*2.0f;
-
-		/* Calculate the 312 sequence euler angles that rotate from earth to body frame
-		 * Derived from https://github.com/PX4/ecl/blob/master/matlab/scripts/Inertial%20Nav%20EKF/quat2yaw312.m
-		 * Body to nav frame transformation using a yaw-roll-pitch rotation sequence is given by:
-		 *
-		[ cos(pitch)*cos(yaw) - sin(pitch)*sin(roll)*sin(yaw), -cos(roll)*sin(yaw), cos(yaw)*sin(pitch) + cos(pitch)*sin(roll)*sin(yaw)]
-		[ cos(pitch)*sin(yaw) + cos(yaw)*sin(pitch)*sin(roll),  cos(roll)*cos(yaw), sin(pitch)*sin(yaw) - cos(pitch)*cos(yaw)*sin(roll)]
-		[                               -cos(roll)*sin(pitch),           sin(roll),                                cos(pitch)*cos(roll)]
-		*/
-		float yaw = atan2f(-_R_to_earth(0, 1), _R_to_earth(1, 1)); // first rotation (yaw)
-		float roll = asinf(_R_to_earth(2, 1)); // second rotation (roll)
-		float pitch = atan2f(-_R_to_earth(2, 0), _R_to_earth(2, 2)); // third rotation (pitch)
-
-		predicted_hdg = yaw; // we will need the predicted heading to calculate the innovation
-
-		// calculate the observed yaw angle
-		if (_control_status.flags.mag_hdg) {
-			// Set the first rotation (yaw) to zero and rotate the measurements into earth frame
-			yaw = 0.0f;
-
-			// Calculate the body to earth frame rotation matrix from the euler angles using a 312 rotation sequence
-			// Equations from Tbn_312.c produced by https://github.com/PX4/ecl/blob/master/matlab/scripts/Inertial%20Nav%20EKF/quat2yaw312.m
-			Dcmf R_to_earth;
-			float sy = sinf(yaw);
-			float cy = cosf(yaw);
-			float sp = sinf(pitch);
-			float cp = cosf(pitch);
-			float sr = sinf(roll);
-			float cr = cosf(roll);
-			R_to_earth(0,0) = cy*cp-sy*sp*sr;
-			R_to_earth(0,1) = -sy*cr;
-			R_to_earth(0,2) = cy*sp+sy*cp*sr;
-			R_to_earth(1,0) = sy*cp+cy*sp*sr;
-			R_to_earth(1,1) = cy*cr;
-			R_to_earth(1,2) = sy*sp-cy*cp*sr;
-			R_to_earth(2,0) = -sp*cr;
-			R_to_earth(2,1) = sr;
-			R_to_earth(2,2) = cp*cr;
-
-			// rotate the magnetometer measurements into earth frame using a zero yaw angle
-			if (_control_status.flags.mag_3D) {
-				// don't apply bias corrections if we are learning them
-				mag_earth_pred = R_to_earth * _mag_sample_delayed.mag;
-			} else {
-				mag_earth_pred = R_to_earth * (_mag_sample_delayed.mag - _state.mag_B);
-			}
-
-			// the angle of the projection onto the horizontal gives the yaw angle
-			measured_hdg = -atan2f(mag_earth_pred(1), mag_earth_pred(0)) + _mag_declination;
-
-		} else if (_control_status.flags.ev_yaw) {
-			// calculate the yaw angle for a 312 sequence
-			// Values from yaw_input_312.c file produced by https://github.com/PX4/ecl/blob/master/matlab/scripts/Inertial%20Nav%20EKF/quat2yaw312.m
-			float Tbn_0_1_neg = 2.0f*(_ev_sample_delayed.quat(0)*_ev_sample_delayed.quat(3)-_ev_sample_delayed.quat(1)*_ev_sample_delayed.quat(2));
-			float Tbn_1_1 = sq(_ev_sample_delayed.quat(0))-sq(_ev_sample_delayed.quat(1))+sq(_ev_sample_delayed.quat(2))-sq(_ev_sample_delayed.quat(3));
-			measured_hdg = atan2f(Tbn_0_1_neg,Tbn_1_1);
-
-		} else {
-			// there is no yaw observation
-			return;
-
-		}
-	}
 
 	// Calculate the observation variance
 	if (_control_status.flags.mag_hdg) {
@@ -597,22 +429,140 @@ void Ekf::fuseHeading()
 		return;
 	}
 
-	// Calculate innovation variance and Kalman gains, taking advantage of the fact that only the first 3 elements in H are non zero
-	// calculate the innovaton variance
-	float PH[4];
-	_heading_innov_var = R_YAW;
-	for (unsigned row = 0; row <= 3; row++) {
-		PH[row] = 0.0f;
-
-		for (uint8_t col = 0; col <= 3; col++) {
-			PH[row] += P[row][col] * H_YAW[col];
-		}
-
-		_heading_innov_var += H_YAW[row] * PH[row];
+	if (_sigma_points_are_stale) {
+		CalcSigmaPoints();
 	}
 
-	float heading_innov_var_inv;
+	float sigma_y_pred[UKF_N_SIGMA];
+	float sigma_y_meas[UKF_N_SIGMA];
+	// determine if a 321 or 312 Euler sequence is best
+	if (fabsf(_R_to_earth(2, 0)) < fabsf(_R_to_earth(2, 1))) {
 
+		for (uint8_t s=0; s<UKF_N_SIGMA; s++) {
+			// rotate the magnetometer measurement into earth frame
+			Eulerf euler321(_sigma_quat[s]);
+			sigma_y_pred[s] = euler321(2); // we will need the predicted heading to calculate the innovation
+
+			// calculate the observed yaw angle
+			if (_control_status.flags.mag_hdg) {
+				// Set the yaw angle to zero and rotate the measurements into earth frame using the zero yaw angle
+				euler321(2) = 0.0f;
+				Dcmf R_to_earth(euler321);
+
+				// rotate the magnetometer measurements into earth frame using a zero yaw angle
+				if (_control_status.flags.mag_3D) {
+					// don't apply bias corrections if we are learning them
+					mag_earth_pred = R_to_earth * _mag_sample_delayed.mag;
+				} else {
+					Vector3f mag_body;
+					mag_body(0) = _mag_sample_delayed.mag(0) - _sigma_x_a(18,s);
+					mag_body(1) = _mag_sample_delayed.mag(1) - _sigma_x_a(19,s);
+					mag_body(2) = _mag_sample_delayed.mag(2) - _sigma_x_a(20,s);
+					mag_earth_pred = R_to_earth * mag_body;
+				}
+
+				// the angle of the projection onto the horizontal gives the yaw angle
+				sigma_y_meas[s] = -atan2f(mag_earth_pred(1), mag_earth_pred(0)) + _mag_declination;
+
+			} else if (_control_status.flags.ev_yaw) {
+				// calculate the yaw angle for a 321 sequence
+				// Expressions obtained from yaw_input_321.c produced by https://github.com/PX4/ecl/blob/master/matlab/scripts/Inertial%20Nav%20EKF/quat2yaw321.m
+				float Tbn_1_0 = 2.0f*(_ev_sample_delayed.quat(0)*_ev_sample_delayed.quat(3)+_ev_sample_delayed.quat(1)*_ev_sample_delayed.quat(2));
+				float Tbn_0_0 = sq(_ev_sample_delayed.quat(0))+sq(_ev_sample_delayed.quat(1))-sq(_ev_sample_delayed.quat(2))-sq(_ev_sample_delayed.quat(3));
+				sigma_y_meas[s] = atan2f(Tbn_1_0,Tbn_0_0);
+
+			} else {
+				// there is no yaw observation
+				return;
+			}
+		}
+	} else {
+
+		for (uint8_t s=0; s<UKF_N_SIGMA; s++) {
+			Dcmf R_to_earth = quat_to_invrotmat(_sigma_quat[s]);
+			/* Calculate the 312 sequence euler angles that rotate from earth to body frame
+			 * Derived from https://github.com/PX4/ecl/blob/master/matlab/scripts/Inertial%20Nav%20EKF/quat2yaw312.m
+			 * Body to nav frame transformation using a yaw-roll-pitch rotation sequence is given by:
+			 *
+			[ cos(pitch)*cos(yaw) - sin(pitch)*sin(roll)*sin(yaw), -cos(roll)*sin(yaw), cos(yaw)*sin(pitch) + cos(pitch)*sin(roll)*sin(yaw)]
+			[ cos(pitch)*sin(yaw) + cos(yaw)*sin(pitch)*sin(roll),  cos(roll)*cos(yaw), sin(pitch)*sin(yaw) - cos(pitch)*cos(yaw)*sin(roll)]
+			[                               -cos(roll)*sin(pitch),           sin(roll),                                cos(pitch)*cos(roll)]
+			*/
+			float yaw = atan2f(-R_to_earth(0, 1), R_to_earth(1, 1)); // first rotation (yaw)
+			float roll = asinf(R_to_earth(2, 1)); // second rotation (roll)
+			float pitch = atan2f(-R_to_earth(2, 0), R_to_earth(2, 2)); // third rotation (pitch)
+
+			sigma_y_pred[s] = yaw; // we will need the predicted heading to calculate the innovation
+
+			// calculate the observed yaw angle
+			if (_control_status.flags.mag_hdg) {
+				// Set the first rotation (yaw) to zero and rotate the measurements into earth frame
+				yaw = 0.0f;
+
+				// Calculate the body to earth frame rotation matrix from the euler angles using a 312 rotation sequence
+				// Equations from Tbn_312.c produced by https://github.com/PX4/ecl/blob/master/matlab/scripts/Inertial%20Nav%20EKF/quat2yaw312.m
+				float sy = sinf(yaw);
+				float cy = cosf(yaw);
+				float sp = sinf(pitch);
+				float cp = cosf(pitch);
+				float sr = sinf(roll);
+				float cr = cosf(roll);
+				R_to_earth(0,0) = cy*cp-sy*sp*sr;
+				R_to_earth(0,1) = -sy*cr;
+				R_to_earth(0,2) = cy*sp+sy*cp*sr;
+				R_to_earth(1,0) = sy*cp+cy*sp*sr;
+				R_to_earth(1,1) = cy*cr;
+				R_to_earth(1,2) = sy*sp-cy*cp*sr;
+				R_to_earth(2,0) = -sp*cr;
+				R_to_earth(2,1) = sr;
+				R_to_earth(2,2) = cp*cr;
+
+				// rotate the magnetometer measurements into earth frame using a zero yaw angle
+				if (_control_status.flags.mag_3D) {
+					// don't apply bias corrections if we are learning them
+					mag_earth_pred = R_to_earth * _mag_sample_delayed.mag;
+				} else {
+					Vector3f mag_body;
+					mag_body(0) = _mag_sample_delayed.mag(0) - _sigma_x_a(18,s);
+					mag_body(1) = _mag_sample_delayed.mag(1) - _sigma_x_a(19,s);
+					mag_body(2) = _mag_sample_delayed.mag(2) - _sigma_x_a(20,s);
+					mag_earth_pred = R_to_earth * mag_body;
+				}
+
+				// the angle of the projection onto the horizontal gives the yaw angle
+				sigma_y_meas[s] = -atan2f(mag_earth_pred(1), mag_earth_pred(0)) + _mag_declination;
+
+			} else if (_control_status.flags.ev_yaw) {
+				// calculate the yaw angle for a 312 sequence
+				// Values from yaw_input_312.c file produced by https://github.com/PX4/ecl/blob/master/matlab/scripts/Inertial%20Nav%20EKF/quat2yaw312.m
+				float Tbn_0_1_neg = 2.0f*(_ev_sample_delayed.quat(0)*_ev_sample_delayed.quat(3)-_ev_sample_delayed.quat(1)*_ev_sample_delayed.quat(2));
+				float Tbn_1_1 = sq(_ev_sample_delayed.quat(0))-sq(_ev_sample_delayed.quat(1))+sq(_ev_sample_delayed.quat(2))-sq(_ev_sample_delayed.quat(3));
+				sigma_y_meas[s] = atan2f(Tbn_0_1_neg,Tbn_1_1);
+
+			} else {
+				// there is no yaw observation
+				return;
+
+			}
+		}
+	}
+
+	// Calculate covariance of predicted output and cross-covariance between state and output
+	float Pyy;
+	float Pxy[UKF_N_STATES] = {};
+	Pyy = R_YAW;
+	for (int sigma_index=0; sigma_index<UKF_N_SIGMA; sigma_index++) { // lopo through sigma points
+		//Pyy +=  param.ukf.wc(s)*(psi_m(:,s) - y_m)*(psi_m(:,s) - y_m)';
+		Pyy += _ukf_wc[sigma_index] * sq(sigma_y_pred[sigma_index] - sigma_y_pred[0]);
+		for (int state_index=0; state_index<UKF_N_STATES; state_index++) { // loop through states
+			//Pxy += param.ukf.wc(s)*(sigma_x_a(1:param.ukf.nP,si) - x_m)*(psi_m(:,s) - y_m)';
+			Pxy[state_index] += _ukf_wc[sigma_index] * (_sigma_x_a(state_index,sigma_index) - _sigma_x_a(state_index,0)) * (sigma_y_pred[sigma_index] - sigma_y_pred[0]);
+		}
+	}
+
+	// Check innovation variance
+	_heading_innov_var = Pyy;
+	float heading_innov_var_inv;
 	// check if the innovation variance calculation is badly conditioned
 	if (_heading_innov_var >= R_YAW) {
 		// the innovation variance contribution from the state covariances is not negative, no fault
@@ -630,36 +580,22 @@ void Ekf::fuseHeading()
 	}
 
 	// calculate the Kalman gains
-	// only calculate gains for states we are using
-	float Kfusion[_k_num_states] = {};
-
-	for (uint8_t row = 0; row <= 15; row++) {
-		Kfusion[row] = 0.0f;
-
-		for (uint8_t col = 0; col <= 3; col++) {
-			Kfusion[row] += P[row][col] * H_YAW[col];
-		}
-
-		Kfusion[row] *= heading_innov_var_inv;
+	// only calculate gains for states we are using - don't modify magnetic field states
+	float Kfusion[UKF_N_STATES] = {};
+	for (uint8_t row = 0; row <= 14; row++) {
+		Kfusion[row] = Pxy[row] / Pyy;
 	}
-
 	if (_control_status.flags.wind) {
-		for (uint8_t row = 22; row <= 23; row++) {
-			Kfusion[row] = 0.0f;
-
-			for (uint8_t col = 0; col <= 3; col++) {
-				Kfusion[row] += P[row][col] * H_YAW[col];
-			}
-
-			Kfusion[row] *= heading_innov_var_inv;
+		for (uint8_t row = 21; row <= 22; row++) {
+			Kfusion[row] = Pxy[row] / Pyy;
 		}
 	}
 
 	// wrap the heading to the interval between +-pi
-	measured_hdg = wrap_pi(measured_hdg);
+	sigma_y_meas[0] = wrap_pi(sigma_y_meas[0]);
 
 	// calculate the innovation
-	_heading_innov = predicted_hdg - measured_hdg;
+	_heading_innov = sigma_y_pred[0] - sigma_y_meas[0];
 
 	// wrap the innovation to the interval between +-pi
 	_heading_innov = wrap_pi(_heading_innov);
@@ -690,24 +626,11 @@ void Ekf::fuseHeading()
 		_innov_check_fail_status.flags.reject_yaw = false;
 	}
 
-	// apply covariance correction via P_new = (I -K*H)*P
-	// first calculate expression for KHP
-	// then calculate P - KHP
-	float KHP[_k_num_states][_k_num_states];
-	float KH[4];
-	for (unsigned row = 0; row < _k_num_states; row++) {
-
-		KH[0] = Kfusion[row] * H_YAW[0];
-		KH[1] = Kfusion[row] * H_YAW[1];
-		KH[2] = Kfusion[row] * H_YAW[2];
-		KH[3] = Kfusion[row] * H_YAW[3];
-
-		for (unsigned column = 0; column < _k_num_states; column++) {
-			float tmp = KH[0] * P[0][column];
-			tmp += KH[1] * P[1][column];
-			tmp += KH[2] * P[2][column];
-			tmp += KH[3] * P[3][column];
-			KHP[row][column] = tmp;
+	// update covariance matrix via P = P - K*Pyy*K'
+	float KPK[UKF_N_STATES][UKF_N_STATES];
+	for (unsigned row = 0; row < UKF_N_STATES; row++) {
+		for (unsigned column = 0; column < UKF_N_STATES; column++) {
+			KPK[row][column] = Kfusion[row] * Pyy * Kfusion[column];
 		}
 	}
 
@@ -715,11 +638,10 @@ void Ekf::fuseHeading()
 	// the covariance marix is unhealthy and must be corrected
 	bool healthy = true;
 	_fault_status.flags.bad_mag_hdg = false;
-	for (int i = 0; i < _k_num_states; i++) {
-		if (P[i][i] < KHP[i][i]) {
+	for (int i = 0; i < UKF_N_STATES; i++) {
+		if (P_UKF(i,i) < KPK[i][i]) {
 			// zero rows and columns
-			zeroRows(P,i,i);
-			zeroCols(P,i,i);
+			zeroCovMat(i,i);
 
 			//flag as unhealthy
 			healthy = false;
@@ -733,11 +655,12 @@ void Ekf::fuseHeading()
 	// only apply covariance and state corrrections if healthy
 	if (healthy) {
 		// apply the covariance corrections
-		for (unsigned row = 0; row < _k_num_states; row++) {
-			for (unsigned column = 0; column < _k_num_states; column++) {
-				P[row][column] = P[row][column] - KHP[row][column];
+		for (unsigned row = 0; row < UKF_N_STATES; row++) {
+			for (unsigned column = 0; column < UKF_N_STATES; column++) {
+				P_UKF(row,column) -= KPK[row][column];
 			}
 		}
+		_sigma_points_are_stale = true;
 
 		// correct the covariance marix for gross errors
 		fixCovarianceErrors();
