@@ -234,7 +234,7 @@ void Ekf::prediction()
 
 	// Convert error quaternions to attitude error vector
 	// By definition the first column is the expected value
-	_sigma_x_a(0,0) = _sigma_x_a(0,1) = _sigma_x_a(0,2) = 0.0f;
+	_sigma_x_a(0,0) = _sigma_x_a(1,0) = _sigma_x_a(2,0) = 0.0f;
 	for (uint8_t s=1; s<UKF_N_SIGMA; s++) {
 		for (uint8_t i=0; i<3; i++) {
 			_sigma_x_a(i,s) = _grp_f * sigma_dq[s](i+1)/(_grp_a + sigma_dq[s](0));
