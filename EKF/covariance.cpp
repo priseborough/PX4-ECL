@@ -205,7 +205,7 @@ void Ekf::prediction()
 
 	// Add variances to covariance matrix
 	for (unsigned i = 0; i < 14; i++) {
-		P_UKF(i,i) += process_noise_variance[i];
+		P_UKF(i+9,i+9) += process_noise_variance[i];
 	}
 
 	// calculate an array of sigma points for the augmented state vector

@@ -327,6 +327,8 @@ void Ekf::predictSigmaPoints()
 		}
 	}
 
+	Vector3f earth_dang_bf = _R_to_earth.transpose() * _earth_rate_NED * _imu_sample_delayed.delta_ang_dt;
+
 	// loop through each sigma point index
 	for (uint8_t s=0; s<UKF_N_SIGMA; s++) {
 		// copy sigma point to local state vector
@@ -336,11 +338,11 @@ void Ekf::predictSigmaPoints()
 		_ukf_states_local.data.quat = _sigma_quat[s];
 
 		// apply imu bias corrections
-		Vector3f corrected_delta_ang = _imu_sample_delayed.delta_ang - _ukf_states_local.data.gyro_bias;
-		Vector3f corrected_delta_vel = _imu_sample_delayed.delta_vel - _ukf_states_local.data.accel_bias;
+		Vector3f corrected_delta_ang = _imu_sample_delayed.delta_ang - _ukf_states_local.data.gyro_bias + _ukf_states_local.data.dang_err;
+		Vector3f corrected_delta_vel = _imu_sample_delayed.delta_vel - _ukf_states_local.data.accel_bias + _ukf_states_local.data.dvel_err;
 
 		// correct delta angles for earth rotation rate
-		corrected_delta_ang -= -_R_to_earth.transpose() * _earth_rate_NED * _imu_sample_delayed.delta_ang_dt;
+		corrected_delta_ang -= earth_dang_bf;
 
 		// convert the delta angle to a delta quaternion
 		Quatf dq;
@@ -356,14 +358,15 @@ void Ekf::predictSigmaPoints()
 		Vector3f vel_last = _ukf_states_local.data.vel;
 
 		// update transformation matrix from body to world frame
-		_R_to_earth = quat_to_invrotmat(_ukf_states_local.data.quat);
+		Dcmf R_to_earth = quat_to_invrotmat(_ukf_states_local.data.quat);
 
 		// Calculate an earth frame delta velocity
-		Vector3f corrected_delta_vel_ef = _R_to_earth * corrected_delta_vel;
+		Vector3f corrected_delta_vel_ef = R_to_earth * corrected_delta_vel;
 
 		// calculate a filtered horizontal acceleration with a 1 sec time constant
 		// this are used for manoeuvre detection elsewhere
 		if (s == 0) {
+			_R_to_earth = R_to_earth;
 			float alpha = 1.0f - _imu_sample_delayed.delta_vel_dt;
 			_accel_lpf_NE(0) = _accel_lpf_NE(0) * alpha + corrected_delta_vel_ef(0);
 			_accel_lpf_NE(1) = _accel_lpf_NE(1) * alpha + corrected_delta_vel_ef(1);
