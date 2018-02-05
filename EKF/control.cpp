@@ -1312,10 +1312,10 @@ void Ekf::controlMagFusion()
 
 		// fuse magnetometer data using the selected methods
 		if (_control_status.flags.mag_3D && _control_status.flags.yaw_align) {
-			fuseMag();
+			//fuseMag();
 
 			if (_control_status.flags.mag_dec) {
-				fuseDeclination();
+				//fuseDeclination();
 			}
 
 		} else if (_control_status.flags.mag_hdg && _control_status.flags.yaw_align) {
