@@ -260,7 +260,7 @@ void Ekf::prediction()
 		}
 		for (uint8_t i=0; i<UKF_N_STATES; i++) {
 			for (uint8_t j=0; j<UKF_N_STATES; j++) {
-				P_UKF(i,j) = _ukf_wc[s] * state_delta[i] * state_delta[j];
+				P_UKF(i,j) += _ukf_wc[s] * state_delta[i] * state_delta[j];
 			}
 		}
 	}
@@ -433,7 +433,7 @@ void Ekf::CalcSigmaPoints()
 
 	// Apply the delta quaternions to the previous estimate to calculate the quaternion sigma points.
 	_sigma_quat[0] = _ukf_states.data.quat;
-	for (uint8_t s=1; s<(2*_ukf_L); s++) {
+	for (uint8_t s=1; s<UKF_N_SIGMA; s++) {
 	    _sigma_quat[s] = dq_sigma[s] * _sigma_quat[0];
 	}
 
