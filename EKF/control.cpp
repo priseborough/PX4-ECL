@@ -115,7 +115,7 @@ void Ekf::controlFusionModes()
 	controlHeightSensorTimeouts();
 
 	// control use of observations for aiding
-	//controlMagFusion();
+	controlMagFusion();
 	//controlOpticalFlowFusion();
 	controlGpsFusion();
 	//controlAirDataFusion();
