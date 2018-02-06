@@ -34,6 +34,7 @@
 /**
  * @file RingBuffer.h
  * @author Roman Bapst <bapstroman@gmail.com>
+ * @author Paul Riseborough <p_riseborough@live.com.au>
  * Template RingBuffer.
  */
 

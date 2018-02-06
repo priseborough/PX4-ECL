@@ -36,6 +36,7 @@
  * Definition of ekf helper functions.
  *
  * @author Roman Bast <bapstroman@gmail.com>
+ * @author Paul Riseborough <p_riseborough@live.com.au>
  *
  */
 

@@ -36,6 +36,7 @@
  * Definition of base class for attitude estimators
  *
  * @author Roman Bast <bapstroman@gmail.com>
+ * @author Paul Riseborough <p_riseborough@live.com.au>
  *
  */
 

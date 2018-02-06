@@ -37,6 +37,7 @@
  * covariance matrix
  *
  * @author Roman Bast <bastroman@gmail.com>
+ * @author Paul Riseborough <p_riseborough@live.com.au>
  *
  */
 
