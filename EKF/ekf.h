@@ -580,8 +580,8 @@ private:
 	// limit the diagonal of the covariance matrix
 	void fixCovarianceErrors();
 
-	// make ekf covariance matrix symmetric between a nominated state indexe range
-	void makeSymmetrical(float (&cov_mat)[_k_num_states][_k_num_states], uint8_t first, uint8_t last);
+	// make UKF covariance matrix symmetric between a nominated state index range
+	void makeSymmetrical(uint8_t first, uint8_t last);
 
 	// constrain the ekf states
 	void constrainStates();
