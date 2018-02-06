@@ -241,10 +241,9 @@ private:
 
 #define UKF_N_STATES 23
 #define UKF_N_Q 6
-#define UKF_N_AUG_STATES 29
+#define UKF_N_AUG_STATES 29 // Size of augmented state vector [3x1 rotVec ; 3x1 velNED ; 3x1 posNED ; 3x1 dAngBias ; 3x1 dVelBias ; 3x1 magNED ; 3x1 magXYZ ; 2x1 velWindNE ; 3x1 dAngNoise ; 3x1 dVelNoise]
 #define UKF_N_SIGMA 59
 
-	const uint8_t _ukf_L{UKF_N_AUG_STATES}; // Size of augmented state vector [3x1 rotVec ; 3x1 velNED ; 3x1 posNED ; 3x1 dAngBias ; 3x1 dVelBias ; 3x1 magNED ; 3x1 magXYZ ; 2x1 velWindNE ; 3x1 dAngNoise ; 3x1 dVelNoise]
 	const float _ukf_alpha{1.0f}; // Primary scaling parameter
 	const float _ukf_beta{2.0f}; // Secondary scaling parameter (Gaussian assumption)
 	const float _ukf_kappa{0.0f}; // Tertiary scaling parameter
@@ -277,7 +276,7 @@ private:
 			Vector2f    wind_vel;	///< wind velocity in m/s
 			Vector3f    dang_err;	///< delta angle error (rad)
 			Vector3f    dvel_err;	///< delta velocity error (m/s)
-			Quatf       quat;	///< quaternion (not part of the augmented state vector but added for convencience)
+			Quatf       quat;	///< quaternion (not part of the augmented state vector but added for convenience)
 		} data;
 		matrix::Vector<float, 33> vector;
 	};
@@ -285,7 +284,7 @@ private:
 	ukf_state_struct _ukf_states {};	///< state vector estimate
 	ukf_state_struct _ukf_states_mean {};	///< mean value of state vector used for covariance prediction
 	ukf_state_struct _ukf_states_local {};	///< UKF state vector local to sigma point prediction
-	Quatf _sigma_quat[UKF_N_SIGMA] {};
+	Quatf _sigma_quat[UKF_N_SIGMA] {};	///< array of quaternions corresponding to the state vector sigma points
 
 	// UKF misc variables
 	bool _sigma_points_are_stale{false};

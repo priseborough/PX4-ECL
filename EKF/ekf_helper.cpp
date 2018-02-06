@@ -1443,9 +1443,9 @@ void Ekf::get_ekf2ev_quaternion(float *quat)
 // initialise UKF class variables
 void Ekf::initUkfClassVariables()
 {
-	_ukf_wm[0] = _ukf_lambda/(_ukf_lambda+(float)_ukf_L);
+	_ukf_wm[0] = _ukf_lambda/(_ukf_lambda+(float)UKF_N_AUG_STATES);
 	_ukf_wc[0] = _ukf_wm[0] + 1.0f - sq(_ukf_alpha) + _ukf_beta;
-	float temp = 0.5f / (float)_ukf_L;
+	float temp = 0.5f / (float)UKF_N_AUG_STATES;
 	for (uint8_t i=1; i<UKF_N_SIGMA; i++) {
 		_ukf_wm[i] = temp;
 		_ukf_wc[i] = temp;

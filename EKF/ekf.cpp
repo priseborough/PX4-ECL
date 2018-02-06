@@ -331,8 +331,8 @@ void Ekf::predictSigmaPoints()
 
 	// loop through each sigma point index
 	for (uint8_t s=0; s<UKF_N_SIGMA; s++) {
-		// copy sigma point to local state vector
-		for (uint8_t i=0; i<UKF_N_AUG_STATES; i++) {
+		// copy sigma points to local state vector
+		for (uint8_t i=3; i<UKF_N_AUG_STATES; i++) {
 			_ukf_states_local.vector(i) = _sigma_x_a(i,s);
 		}
 		_ukf_states_local.data.quat = _sigma_quat[s];
@@ -381,11 +381,11 @@ void Ekf::predictSigmaPoints()
 		// predict position states via trapezoidal integration of velocity
 		_ukf_states_local.data.pos += (vel_last + _ukf_states_local.data.vel) * _imu_sample_delayed.delta_vel_dt * 0.5f;
 
-		// copy local state vector to sigma point
-		for (uint8_t i=0; i<UKF_N_AUG_STATES; i++) {
+		// copy local quaternion, velocity and position states to sigma point
+		_sigma_quat[s] = _ukf_states_local.data.quat;
+		for (uint8_t i=3; i<9; i++) {
 			_sigma_x_a(i,s) = _ukf_states_local.vector(i);
 		}
-		_sigma_quat[s] = _ukf_states_local.data.quat;
 
 	}
 

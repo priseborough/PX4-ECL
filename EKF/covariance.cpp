@@ -103,6 +103,9 @@ void Ekf::initialiseCovariance()
 	SP_UKF = matrix::cholesky(P_UKF);
 	SQ_UKF = matrix::cholesky(Q_UKF);
 
+	// generate sigma points
+	predictSigmaPoints();
+
 }
 
 void Ekf::get_pos_var(Vector3f &pos_var)
@@ -208,10 +211,14 @@ void Ekf::prediction()
 		P_UKF(i+9,i+9) += process_noise_variance[i];
 	}
 
+	// set the control input noise variances
+	Q_UKF(2,2) = Q_UKF(1,1) = Q_UKF(0,0) = sq(_params.gyro_noise * dt);
+	Q_UKF(5,5) = Q_UKF(4,4) = Q_UKF(3,3) = sq(_params.accel_noise * dt);
+
 	// calculate an array of sigma points for the augmented state vector
 	CalcSigmaPoints();
 
-	// Propagate each sigma point forward using the INS equations
+	// Propagate sigma points forward using the INS equations
 	predictSigmaPoints();
 
 	// Use the sigma points to calculate the mean state vector and the covariances
@@ -230,6 +237,7 @@ void Ekf::prediction()
 	sigma_dq[0](3) = sigma_dq[0](2) = sigma_dq[0](1) = 0.0f;
 	for (uint8_t s=1; s<UKF_N_SIGMA; s++) {
 	    sigma_dq[s] = _sigma_quat[s] * qm_inverse;
+	    sigma_dq[s].normalize();
 	}
 
 	// Convert error quaternions to attitude error vector
@@ -374,8 +382,9 @@ void Ekf::resetWindCovariance()
 void Ekf::CalcSigmaPoints()
 {
 	// Calculate the lower diagonal Cholesky decomposition for the vehicle
-	// state covariance matrix. This requires UKF_N_STATES^3 operations
+	// state and control input covariance matrices. This requires N^3 operations
 	SP_UKF = matrix::cholesky(P_UKF);
+	SQ_UKF = matrix::cholesky(Q_UKF);
 
 	// Assemble the augmented covariance matrix
 	for (int i = 0; i < UKF_N_STATES; i++) {
@@ -389,32 +398,29 @@ void Ekf::CalcSigmaPoints()
 		}
 	}
 
-	// Expected value of augmented state vector from previous frame
-	matrix::Vector<float, UKF_N_AUG_STATES> x_a_prev;
-	for (int i = 0; i < UKF_N_STATES; i++) {
-		// vehicle states
-		x_a_prev(i) = _ukf_states.vector(i);
-	}
-	for (int i = UKF_N_STATES; i < UKF_N_AUG_STATES; i++) {
-		// IMU noise has zero mean expected value
-		x_a_prev(i) = 0.0f;
-	}
-
 	// Generate sigma points for the augmented state vector
 
-	// first column represents expected value (zero delta)
-	for (int i = 0; i < UKF_N_AUG_STATES; i++) {
-		// vehicle states
-		_sigma_x_a(i,0) = x_a_prev(i);
+	// Calculate first column representing expected value of augmented state vector from previous frame
+	for (int i = 0; i < 3; i++) {
+		// attitude error vector is zero mean by definition
+		_sigma_x_a(i,0) = 0.0f;
+	}
+	for (int i = 3; i < UKF_N_STATES; i++) {
+		// vehicle kinematic states
+		_sigma_x_a(i,0) = _ukf_states.vector(i);
+	}
+	for (int i = UKF_N_STATES; i < UKF_N_AUG_STATES; i++) {
+		// augmented states representing IMU noise are zero mean by definition
+		_sigma_x_a(i,0) = 0.0f;
 	}
 
 	// remaining columns
-	float temp_var1 = sqrtf((float)_ukf_L + _ukf_lambda);
-	for (int j = 0; j < UKF_N_AUG_STATES; j++) {
-		for (int i = 0; i < UKF_N_AUG_STATES; i++) {
-			float temp_var2 = temp_var1 * SPA_UKF(i,j);
-			_sigma_x_a(i,j+1) = x_a_prev(i) + temp_var2;
-			_sigma_x_a(i,j+1+UKF_N_AUG_STATES) = x_a_prev(i) - temp_var2;
+	float temp_var1 = sqrtf((float)UKF_N_AUG_STATES + _ukf_lambda);
+	for (int col = 0; col < UKF_N_AUG_STATES; col++) {
+		for (int row = 0; row < UKF_N_AUG_STATES; row++) {
+			float temp_var2 = temp_var1 * SPA_UKF(row,col);
+			_sigma_x_a(row,col+1) = _sigma_x_a(row,0) + temp_var2;
+			_sigma_x_a(row,col+1+UKF_N_AUG_STATES) = _sigma_x_a(row,0) - temp_var2;
 		}
 	}
 
@@ -423,7 +429,7 @@ void Ekf::CalcSigmaPoints()
 	dq_sigma[0](0) = 1.0f;
 	dq_sigma[0](1) = dq_sigma[0](2) = dq_sigma[0](3) = 0.0f;
 	float normsigmaX2;
-	for (uint8_t s=1; s<(2*_ukf_L); s++) {
+	for (uint8_t s=1; s<UKF_N_SIGMA; s++) {
 		normsigmaX2 = sq(_sigma_x_a(0,s)) + sq(_sigma_x_a(1,s)) + sq(_sigma_x_a(2,s));
 		dq_sigma[s](0) = (-_grp_a * normsigmaX2 + _grp_f*sqrtf( sq(_grp_f) + (1.0f - sq(_grp_a)) * normsigmaX2)) / (sq(_grp_f) + normsigmaX2);
 		for (uint8_t i=0; i<3; i++) {
@@ -435,6 +441,7 @@ void Ekf::CalcSigmaPoints()
 	_sigma_quat[0] = _ukf_states.data.quat;
 	for (uint8_t s=1; s<UKF_N_SIGMA; s++) {
 	    _sigma_quat[s] = dq_sigma[s] * _sigma_quat[0];
+	    _sigma_quat[s].normalize();
 	}
 
 	_sigma_points_are_stale = false;
