@@ -81,7 +81,7 @@ void Ekf::fuseAirspeed()
 		SH_TAS[1] = (SH_TAS[0]*(2.0f*ve - 2.0f*vwe))*0.5f;
 		SH_TAS[2] = (SH_TAS[0]*(2.0f*vn - 2.0f*vwn))*0.5f;
 
-		for (uint8_t i = 0; i < _k_num_states; i++) { H_TAS[i] = 0.0f; }
+		for (uint8_t i = 0; i < _num_ekf_states; i++) { H_TAS[i] = 0.0f; }
 
 		H_TAS[4] = SH_TAS[2];
 		H_TAS[5] = SH_TAS[1];
@@ -174,9 +174,9 @@ void Ekf::fuseAirspeed()
 		// apply covariance correction via P_new = (I -K*H)*P
 		// first calculate expression for KHP
 		// then calculate P - KHP
-		float KHP[_k_num_states][_k_num_states];
+		float KHP[_num_ekf_states][_num_ekf_states];
 		float KH[5];
-		for (unsigned row = 0; row < _k_num_states; row++) {
+		for (unsigned row = 0; row < _num_ekf_states; row++) {
 
 			KH[0] = Kfusion[row] * H_TAS[4];
 			KH[1] = Kfusion[row] * H_TAS[5];
@@ -184,7 +184,7 @@ void Ekf::fuseAirspeed()
 			KH[3] = Kfusion[row] * H_TAS[22];
 			KH[4] = Kfusion[row] * H_TAS[23];
 
-			for (unsigned column = 0; column < _k_num_states; column++) {
+			for (unsigned column = 0; column < _num_ekf_states; column++) {
 				float tmp = KH[0] * P[4][column];
 				tmp += KH[1] * P[5][column];
 				tmp += KH[2] * P[6][column];
@@ -198,7 +198,7 @@ void Ekf::fuseAirspeed()
 		// the covariance marix is unhealthy and must be corrected
 		bool healthy = true;
 		_fault_status.flags.bad_airspeed = false;
-		for (int i = 0; i < _k_num_states; i++) {
+		for (int i = 0; i < _num_ekf_states; i++) {
 			if (P[i][i] < KHP[i][i]) {
 				// zero rows and columns
 				zeroRows(P,i,i);
@@ -216,8 +216,8 @@ void Ekf::fuseAirspeed()
 		// only apply covariance and state corrrections if healthy
 		if (healthy) {
 			// apply the covariance corrections
-			for (unsigned row = 0; row < _k_num_states; row++) {
-				for (unsigned column = 0; column < _k_num_states; column++) {
+			for (unsigned row = 0; row < _num_ekf_states; row++) {
+				for (unsigned column = 0; column < _num_ekf_states; column++) {
 					P[row][column] = P[row][column] - KHP[row][column];
 				}
 			}

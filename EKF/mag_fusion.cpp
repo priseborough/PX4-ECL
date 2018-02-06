@@ -338,9 +338,9 @@ void Ekf::fuseMag()
 		// apply covariance correction via P_new = (I -K*H)*P
 		// first calculate expression for KHP
 		// then calculate P - KHP
-		float KHP[_k_num_states][_k_num_states];
+		float KHP[_num_ekf_states][_num_ekf_states];
 		float KH[10];
-		for (unsigned row = 0; row < _k_num_states; row++) {
+		for (unsigned row = 0; row < _num_ekf_states; row++) {
 
 			KH[0] = Kfusion[row] * H_MAG[0];
 			KH[1] = Kfusion[row] * H_MAG[1];
@@ -353,7 +353,7 @@ void Ekf::fuseMag()
 			KH[8] = Kfusion[row] * H_MAG[20];
 			KH[9] = Kfusion[row] * H_MAG[21];
 
-			for (unsigned column = 0; column < _k_num_states; column++) {
+			for (unsigned column = 0; column < _num_ekf_states; column++) {
 				float tmp = KH[0] * P[0][column];
 				tmp += KH[1] * P[1][column];
 				tmp += KH[2] * P[2][column];
@@ -373,7 +373,7 @@ void Ekf::fuseMag()
 		_fault_status.flags.bad_mag_x = false;
 		_fault_status.flags.bad_mag_y = false;
 		_fault_status.flags.bad_mag_z = false;
-		for (int i = 0; i < _k_num_states; i++) {
+		for (int i = 0; i < _num_ekf_states; i++) {
 			if (P[i][i] < KHP[i][i]) {
 				// zero rows and columns
 				zeroRows(P,i,i);
@@ -396,8 +396,8 @@ void Ekf::fuseMag()
 		// only apply covariance and state corrrections if healthy
 		if (healthy) {
 			// apply the covariance corrections
-			for (unsigned row = 0; row < _k_num_states; row++) {
-				for (unsigned column = 0; column < _k_num_states; column++) {
+			for (unsigned row = 0; row < _num_ekf_states; row++) {
+				for (unsigned column = 0; column < _num_ekf_states; column++) {
 					P[row][column] = P[row][column] - KHP[row][column];
 				}
 			}
@@ -720,7 +720,7 @@ void Ekf::fuseDeclination()
 	H_DECL[17] = magN*t21;
 
 	// Calculate the Kalman gains
-	float Kfusion[_k_num_states] = {};
+	float Kfusion[_num_ekf_states] = {};
 	Kfusion[0] = -t4*t13*(P[0][16]*magE-P[0][17]*magN);
 	Kfusion[1] = -t4*t13*(P[1][16]*magE-P[1][17]*magN);
 	Kfusion[2] = -t4*t13*(P[2][16]*magE-P[2][17]*magN);
@@ -754,14 +754,14 @@ void Ekf::fuseDeclination()
 	// first calculate expression for KHP
 	// then calculate P - KHP
 	// take advantage of the empty columns in KH to reduce the number of operations
-	float KHP[_k_num_states][_k_num_states];
+	float KHP[_num_ekf_states][_num_ekf_states];
 	float KH[2];
-	for (unsigned row = 0; row < _k_num_states; row++) {
+	for (unsigned row = 0; row < _num_ekf_states; row++) {
 
 		KH[0] = Kfusion[row] * H_DECL[16];
 		KH[1] = Kfusion[row] * H_DECL[17];
 
-		for (unsigned column = 0; column < _k_num_states; column++) {
+		for (unsigned column = 0; column < _num_ekf_states; column++) {
 			float tmp = KH[0] * P[16][column];
 			tmp += KH[1] * P[17][column];
 			KHP[row][column] = tmp;
@@ -772,7 +772,7 @@ void Ekf::fuseDeclination()
 	// the covariance marix is unhealthy and must be corrected
 	bool healthy = true;
 	_fault_status.flags.bad_mag_decl = false;
-	for (int i = 0; i < _k_num_states; i++) {
+	for (int i = 0; i < _num_ekf_states; i++) {
 		if (P[i][i] < KHP[i][i]) {
 			// zero rows and columns
 			zeroRows(P,i,i);
@@ -790,8 +790,8 @@ void Ekf::fuseDeclination()
 	// only apply covariance and state corrrections if healthy
 	if (healthy) {
 		// apply the covariance corrections
-		for (unsigned row = 0; row < _k_num_states; row++) {
-			for (unsigned column = 0; column < _k_num_states; column++) {
+		for (unsigned row = 0; row < _num_ekf_states; row++) {
+			for (unsigned column = 0; column < _num_ekf_states; column++) {
 				P[row][column] = P[row][column] - KHP[row][column];
 			}
 		}

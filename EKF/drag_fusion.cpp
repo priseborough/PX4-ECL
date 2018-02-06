@@ -240,9 +240,9 @@ void Ekf::fuseDrag()
 			// apply covariance correction via P_new = (I -K*H)*P
 			// first calculate expression for KHP
 			// then calculate P - KHP
-			float KHP[_k_num_states][_k_num_states];
+			float KHP[_num_ekf_states][_num_ekf_states];
 			float KH[9];
-			for (unsigned row = 0; row < _k_num_states; row++) {
+			for (unsigned row = 0; row < _num_ekf_states; row++) {
 
 				KH[0] = Kfusion[row] * H_ACC[0];
 				KH[1] = Kfusion[row] * H_ACC[1];
@@ -254,7 +254,7 @@ void Ekf::fuseDrag()
 				KH[7] = Kfusion[row] * H_ACC[22];
 				KH[8] = Kfusion[row] * H_ACC[23];
 
-				for (unsigned column = 0; column < _k_num_states; column++) {
+				for (unsigned column = 0; column < _num_ekf_states; column++) {
 					float tmp = KH[0] * P[0][column];
 					tmp += KH[1] * P[1][column];
 					tmp += KH[2] * P[2][column];
@@ -272,7 +272,7 @@ void Ekf::fuseDrag()
 			// the covariance marix is unhealthy and must be corrected
 			bool healthy = true;
 			//_fault_status.flags.bad_sideslip = false;
-			for (int i = 0; i < _k_num_states; i++) {
+			for (int i = 0; i < _num_ekf_states; i++) {
 				if (P[i][i] < KHP[i][i]) {
 					// zero rows and columns
 					zeroRows(P,i,i);
@@ -290,8 +290,8 @@ void Ekf::fuseDrag()
 			// only apply covariance and state corrrections if healthy
 			if (healthy) {
 				// apply the covariance corrections
-				for (unsigned row = 0; row < _k_num_states; row++) {
-					for (unsigned column = 0; column < _k_num_states; column++) {
+				for (unsigned row = 0; row < _num_ekf_states; row++) {
+					for (unsigned column = 0; column < _num_ekf_states; column++) {
 						P[row][column] = P[row][column] - KHP[row][column];
 					}
 				}

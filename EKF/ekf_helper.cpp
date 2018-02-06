@@ -1166,7 +1166,7 @@ void Ekf::fuse(float *K, float innovation)
 }
 
 // zero specified range of rows in the state covariance matrix
-void Ekf::zeroRows(float (&cov_mat)[_k_num_states][_k_num_states], uint8_t first, uint8_t last)
+void Ekf::zeroRows(float (&cov_mat)[_num_ekf_states][_num_ekf_states], uint8_t first, uint8_t last)
 {
 	uint8_t row;
 
@@ -1176,7 +1176,7 @@ void Ekf::zeroRows(float (&cov_mat)[_k_num_states][_k_num_states], uint8_t first
 }
 
 // zero specified range of columns in the state covariance matrix
-void Ekf::zeroCols(float (&cov_mat)[_k_num_states][_k_num_states], uint8_t first, uint8_t last)
+void Ekf::zeroCols(float (&cov_mat)[_num_ekf_states][_num_ekf_states], uint8_t first, uint8_t last)
 {
 	uint8_t row;
 
@@ -1207,11 +1207,11 @@ void Ekf::zeroCovMat(uint8_t first, uint8_t last)
 //	}
 }
 
-void Ekf::zeroOffDiag(float (&cov_mat)[_k_num_states][_k_num_states], uint8_t first, uint8_t last)
+void Ekf::zeroOffDiag(float (&cov_mat)[_num_ekf_states][_num_ekf_states], uint8_t first, uint8_t last)
 {
 	// save diagonal elements
 	uint8_t row;
-	float variances[_k_num_states];
+	float variances[_num_ekf_states];
 	for (row = first; row <= last; row++) {
 		variances[row] = cov_mat[row][row];
 	}
@@ -1226,7 +1226,7 @@ void Ekf::zeroOffDiag(float (&cov_mat)[_k_num_states][_k_num_states], uint8_t fi
 	}
 }
 
-void Ekf::setDiag(float (&cov_mat)[_k_num_states][_k_num_states], uint8_t first, uint8_t last, float variance)
+void Ekf::setDiag(float (&cov_mat)[_num_ekf_states][_num_ekf_states], uint8_t first, uint8_t last, float variance)
 {
 	// zero rows and columns
 	zeroRows(cov_mat, first, last);
