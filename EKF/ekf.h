@@ -257,10 +257,10 @@ private:
 	const float _grp_f{2.0f*(_grp_a+1.0f)};
 
 	// UKF covariance prediction variables
-	matrix::SquareMatrix<float, UKF_N_STATES> P_UKF; ///< state covariance matrix
-	matrix::SquareMatrix<float, UKF_N_STATES> SP_UKF;
-	matrix::SquareMatrix<float,6> Q_UKF; ///< control input noise covariance matrix
-	matrix::SquareMatrix<float, 6> SQ_UKF; ///< lower diagonal Cholesky decomposition for the input noise covariance matrix
+	matrix::SquareMatrix<double, UKF_N_STATES> P_UKF; ///< state covariance matrix
+	matrix::SquareMatrix<double, UKF_N_STATES> SP_UKF;
+	matrix::SquareMatrix<double,6> Q_UKF; ///< control input noise covariance matrix
+	matrix::SquareMatrix<double, 6> SQ_UKF; ///< lower diagonal Cholesky decomposition for the input noise covariance matrix
 	matrix::SquareMatrix<float, UKF_N_AUG_STATES> SPA_UKF; ///< lower diagonal Cholesky decomposition for the augmented state covariance matrix
 	matrix::Matrix<float, UKF_N_AUG_STATES, UKF_N_SIGMA> _sigma_x_a; ///< augmented state vector sigma points
 

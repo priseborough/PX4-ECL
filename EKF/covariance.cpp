@@ -289,30 +289,30 @@ void Ekf::fixCovarianceErrors()
 
 	for (int i = 0; i <= 2; i++) {
 		// attitude vector states
-		P_UKF(i,i) = math::constrain(P_UKF(i,i), 1e-9f, P_lim[0]);
+		P_UKF(i,i) = fmin(fmax(P_UKF(i,i), 1e-9f), P_lim[0]);
 	}
 	for (int i = 3; i <= 5; i++) {
 		// NED velocity states
-		P_UKF(i,i) = math::constrain(P_UKF(i,i), 1e-9f, P_lim[1]);
+		P_UKF(i,i) = fmin(fmax(P_UKF(i,i), 1e-9f), P_lim[1]);
 	}
 	for (int i = 6; i <= 8; i++) {
 		// NED position states
-		P_UKF(i,i) = math::constrain(P_UKF(i,i), 1e-9f, P_lim[2]);
+		P_UKF(i,i) = fmin(fmax(P_UKF(i,i), 1e-9f), P_lim[2]);
 	}
 	for (int i = 9; i <= 11; i++) {
-		P_UKF(i,i) = math::constrain(P_UKF(i,i), 1e-9f, P_lim[3]);
+		P_UKF(i,i) = fmin(fmax(P_UKF(i,i), 1e-9f), P_lim[3]);
 	}
 	for (int i = 12; i <= 14; i++) {
-		P_UKF(i,i) = math::constrain(P_UKF(i,i), 1e-9f, P_lim[4]);
+		P_UKF(i,i) = fmin(fmax(P_UKF(i,i), 1e-9f), P_lim[4]);
 	}
 	for (int i = 15; i <= 17; i++) {
-		P_UKF(i,i) = math::constrain(P_UKF(i,i), 1e-9f, P_lim[5]);
+		P_UKF(i,i) = fmin(fmax(P_UKF(i,i), 1e-9f), P_lim[5]);
 	}
 	for (int i = 18; i <= 20; i++) {
-		P_UKF(i,i) = math::constrain(P_UKF(i,i), 1e-9f, P_lim[6]);
+		P_UKF(i,i) = fmin(fmax(P_UKF(i,i), 1e-9f), P_lim[6]);
 	}
 	for (int i = 21; i <= 22; i++) {
-		P_UKF(i,i) = math::constrain(P_UKF(i,i), 1e-9f, P_lim[7]);
+		P_UKF(i,i) = fmin(fmax(P_UKF(i,i), 1e-9f), P_lim[7]);
 	}
 }
 
