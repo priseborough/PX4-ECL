@@ -237,31 +237,35 @@ public:
 
 private:
 
+	// UKF IMPLEMENTATION SPECIFIC
+
 	// Define Unscented Transform scaling parameters and weight vectors
+	#define UKF_N_STATES 23
+	#define UKF_N_Q 6
+	#define UKF_N_AUG_STATES 29 // Size of augmented state vector [3x1 rotVec ; 3x1 velNED ; 3x1 posNED ; 3x1 dAngBias ; 3x1 dVelBias ; 3x1 magNED ; 3x1 magXYZ ; 2x1 velWindNE ; 3x1 dAngNoise ; 3x1 dVelNoise]
+	#define UKF_N_SIGMA 59
 
-#define UKF_N_STATES 23
-#define UKF_N_Q 6
-#define UKF_N_AUG_STATES 29 // Size of augmented state vector [3x1 rotVec ; 3x1 velNED ; 3x1 posNED ; 3x1 dAngBias ; 3x1 dVelBias ; 3x1 magNED ; 3x1 magXYZ ; 2x1 velWindNE ; 3x1 dAngNoise ; 3x1 dVelNoise]
-#define UKF_N_SIGMA 59
-
-	const float _ukf_alpha{1.0f}; // Primary scaling parameter
-	const float _ukf_beta{2.0f}; // Secondary scaling parameter (Gaussian assumption)
-	const float _ukf_kappa{0.0f}; // Tertiary scaling parameter
+	// Parameters controlling the unscented transform
+	const float _ukf_alpha{1.0f};	///< Primary scaling parameter
+	const float _ukf_beta{2.0f};	///< Secondary scaling parameter (Gaussian assumption)
+	const float _ukf_kappa{0.0f};	///< Tertiary scaling parameter
 	const float _ukf_lambda{sq(_ukf_alpha) * ((float)UKF_N_AUG_STATES + _ukf_kappa) - (float)UKF_N_AUG_STATES};
-	float _ukf_wm[UKF_N_SIGMA];
-	float _ukf_wc[UKF_N_SIGMA];
+	float _ukf_wm[UKF_N_SIGMA];	///< vector of weights used to calculate expected value of state vector from sigma points
+	float _ukf_wc[UKF_N_SIGMA];	///< vector of weights used to calculate covariance from sigma points
 
 	// Generalized Rodrigues Parameter (GRP) coefficients
-	const float _grp_a{1.0f}; // set to value that gives a vector magntude that is = to the rotation angle for small values
-	const float _grp_f{2.0f*(_grp_a+1.0f)};
+	// set to values that give a vector magntude that is equal to the rotation angle for small rotations
+	const float _grp_a{1.0f};		///< Generalized Rodrigues Parameter (GRP) coefficient A
+	const float _grp_f{2.0f*(_grp_a+1.0f)};	///< Generalized Rodrigues Parameter (GRP) coefficient F
 
 	// UKF covariance prediction variables
-	matrix::SquareMatrix<double, UKF_N_STATES> P_UKF; ///< state covariance matrix
-	matrix::SquareMatrix<double, UKF_N_STATES> SP_UKF;
-	matrix::SquareMatrix<double,6> Q_UKF; ///< control input noise covariance matrix
-	matrix::SquareMatrix<double, 6> SQ_UKF; ///< lower diagonal Cholesky decomposition for the input noise covariance matrix
-	matrix::SquareMatrix<float, UKF_N_AUG_STATES> SPA_UKF; ///< lower diagonal Cholesky decomposition for the augmented state covariance matrix
-	matrix::Matrix<float, UKF_N_AUG_STATES, UKF_N_SIGMA> _sigma_x_a; ///< augmented state vector sigma points
+	matrix::SquareMatrix<double, UKF_N_STATES> P_UKF;	///< state covariance matrix
+	matrix::SquareMatrix<double, UKF_N_STATES> SP_UKF;	/// lower diagonal Cholesky decomposition for the state covariance matrix
+	matrix::SquareMatrix<double,6> Q_UKF;			///< control input noise covariance matrix
+	matrix::SquareMatrix<double, 6> SQ_UKF;			///< lower diagonal Cholesky decomposition for the input noise covariance matrix
+	matrix::SquareMatrix<float, UKF_N_AUG_STATES> SPA_UKF;	///< lower diagonal Cholesky decomposition for the augmented state covariance matrix
+	matrix::Matrix<float, UKF_N_AUG_STATES, UKF_N_SIGMA> _sigma_x_a;///< augmented state vector sigma points
+	Quatf _sigma_quat[UKF_N_SIGMA] {};			///< array of quaternions corresponding to the state vector sigma points
 
 	// UKF augmented state vector
 	union ukf_state_struct {
@@ -284,10 +288,10 @@ private:
 	ukf_state_struct _ukf_states {};	///< state vector estimate
 	ukf_state_struct _ukf_states_mean {};	///< mean value of state vector used for covariance prediction
 	ukf_state_struct _ukf_states_local {};	///< UKF state vector local to sigma point prediction
-	Quatf _sigma_quat[UKF_N_SIGMA] {};	///< array of quaternions corresponding to the state vector sigma points
 
-	// UKF misc variables
-	bool _sigma_points_are_stale{false};
+	bool _sigma_points_are_stale{false};	///< true when the covariance has changed and the sigma points need to be updated
+
+	// LEGACY EKF - remove declarations as required
 
 	static constexpr uint8_t _k_num_states{24};		///< number of states
 
