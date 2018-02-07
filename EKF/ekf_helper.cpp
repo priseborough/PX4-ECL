@@ -1195,24 +1195,16 @@ void Ekf::zeroCols(float (&cov_mat)[_num_ekf_states][_num_ekf_states], uint8_t f
 
 void Ekf::zeroCovMat(uint8_t first, uint8_t last)
 {
-	for (uint8_t row = 0; row < UKF_N_STATES; row++) {
-		for (uint8_t col = 0; col < UKF_N_STATES; col++) {
-			if ((row >= first && row <= last) || (col >= first && col <= last)) {
-				P_UKF(row,col) = 0.0f;
-			}
-		}
+	// zero rows
+	uint8_t row;
+	for (row = first; row <= last; row++) {
+		memset(&P_UKF(row,0), 0, sizeof(P_UKF(0,0)) * 23);
 	}
 
-//	// zero rows
-//	uint8_t row;
-//	for (row = first; row <= last; row++) {
-//		memset(&P_UKF(row,0), 0, sizeof(P_UKF(0,0)) * 23);
-//	}
-
-//	// zero columns
-//	for (row = 0; row <= 22; row++) {
-//		memset(&P_UKF(row,first), 0, sizeof(P_UKF(0,0)) * (1 + last - first));
-//	}
+	// zero columns
+	for (row = 0; row <= 22; row++) {
+		memset(&P_UKF(row,first), 0, sizeof(P_UKF(0,0)) * (1 + last - first));
+	}
 }
 
 void Ekf::zeroOffDiag(uint8_t first, uint8_t last)
