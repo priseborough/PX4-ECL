@@ -1197,14 +1197,14 @@ void Ekf::zeroCovMat(uint8_t first, uint8_t last)
 {
 	for (uint8_t row = 0; row < UKF_N_STATES; row++) {
 		for (uint8_t col = 0; col < UKF_N_STATES; col++) {
-			if ((row >= first && row <= last) || (col >= first && col >= last)) {
+			if ((row >= first && row <= last) || (col >= first && col <= last)) {
 				P_UKF(row,col) = 0.0f;
 			}
 		}
 	}
 
-
 //	// zero rows
+//	uint8_t row;
 //	for (row = first; row <= last; row++) {
 //		memset(&P_UKF(row,0), 0, sizeof(P_UKF(0,0)) * 23);
 //	}
