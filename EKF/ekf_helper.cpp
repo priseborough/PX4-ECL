@@ -310,12 +310,12 @@ void Ekf::resetHeight()
 
 	// add the reset amount to the output observer vertical position state
 	if (vert_pos_reset) {
-		_output_vert_delayed.vel_d_integ = _state.pos(2);
-		_output_vert_new.vel_d_integ = _state.pos(2);
+		_output_vert_delayed.vel_d_integ = _ukf_states.data.pos(2);
+		_output_vert_new.vel_d_integ = _ukf_states.data.pos(2);
 	}
 	if (vert_vel_reset) {
-		_output_vert_delayed.vel_d = _state.vel(2);
-		_output_vert_new.vel_d = _state.vel(2);
+		_output_vert_delayed.vel_d = _ukf_states.data.vel(2);
+		_output_vert_new.vel_d = _ukf_states.data.vel(2);
 	}
 
 	_sigma_points_are_stale = true;
