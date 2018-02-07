@@ -58,11 +58,11 @@ bool Ekf::resetVelocity()
 		_ukf_states.data.vel = _gps_sample_delayed.vel;
 
 		// use GPS accuracy to reset variances
-		setDiag(P,4,6,sq(_gps_sample_delayed.sacc));
+		setDiag(3,5,sq(_gps_sample_delayed.sacc));
 
 	} else if (_control_status.flags.opt_flow || _control_status.flags.ev_pos) {
 		_ukf_states.data.vel.setZero();
-		zeroOffDiag(P,4,6);
+		zeroOffDiag(3,5);
 
 	} else {
 		return false;
@@ -86,6 +86,7 @@ bool Ekf::resetVelocity()
 	_state_reset_status.velNE_counter++;
 	_state_reset_status.velD_counter++;
 
+	_sigma_points_are_stale = true;
 	return true;
 }
 
@@ -107,12 +108,12 @@ bool Ekf::resetPosition()
 		_ukf_states.data.pos(1) = _gps_sample_delayed.pos(1);
 
 		// use GPS accuracy to reset variances
-		setDiag(P,7,8,sq(_gps_sample_delayed.hacc));
+		setDiag(6,7,sq(_gps_sample_delayed.hacc));
 
 	} else if (_control_status.flags.opt_flow) {
 		_ukf_states.data.pos(0) = 0.0f;
 		_ukf_states.data.pos(1) = 0.0f;
-		zeroOffDiag(P,7,8);
+		zeroOffDiag(6,7);
 
 	} else if (_control_status.flags.ev_pos) {
 		// this reset is only called if we have new ev data at the fusion time horizon
@@ -120,7 +121,7 @@ bool Ekf::resetPosition()
 		_ukf_states.data.pos(1) = _ev_sample_delayed.posNED(1);
 
 		// use EV accuracy to reset variances
-		setDiag(P,7,8,sq(_ev_sample_delayed.posErr));
+		setDiag(6,7,sq(_ev_sample_delayed.posErr));
 
 	} else {
 		return false;
@@ -143,6 +144,7 @@ bool Ekf::resetPosition()
 	_state_reset_status.posNE_change = posNE_change;
 	_state_reset_status.posNE_counter++;
 
+	_sigma_points_are_stale = true;
 	return true;
 }
 
@@ -303,6 +305,8 @@ void Ekf::resetHeight()
 			_output_buffer[i].vel(2) += _state_reset_status.velD_change;
 		}
 	}
+
+	_sigma_points_are_stale = true;
 }
 
 // align output filter states to match EKF states at the fusion time horizon
@@ -433,6 +437,7 @@ bool Ekf::realignYawGPS()
 			// capture the reset event
 			_state_reset_status.quat_counter++;
 
+			_sigma_points_are_stale = true;
 			return true;
 
 		} else {
@@ -451,13 +456,13 @@ bool Ekf::realignYawGPS()
 			// record the start time for the magnetic field alignment
 			_flt_mag_align_start_time = _imu_sample_delayed.time_us;
 
+			_sigma_points_are_stale = true;
 			return true;
 		}
 
 	} else {
 		// attempt a normal alignment using the magnetometer
 		return resetMagHeading(_mag_sample_delayed.mag);
-
 	}
 }
 
@@ -648,6 +653,7 @@ bool Ekf::resetMagHeading(Vector3f &mag_init)
 
 	}
 
+	_sigma_points_are_stale = true;
 	return true;
 }
 
@@ -1067,6 +1073,7 @@ bool Ekf::reset_imu_bias()
 	_prev_dvel_bias_var(1) = P_UKF(13,13);
 	_prev_dvel_bias_var(2) = P_UKF(14,14);
 
+	_sigma_points_are_stale = true;
 	return true;
 
 }
@@ -1208,35 +1215,33 @@ void Ekf::zeroCovMat(uint8_t first, uint8_t last)
 //	}
 }
 
-void Ekf::zeroOffDiag(float (&cov_mat)[_num_ekf_states][_num_ekf_states], uint8_t first, uint8_t last)
+void Ekf::zeroOffDiag(uint8_t first, uint8_t last)
 {
 	// save diagonal elements
 	uint8_t row;
-	float variances[_num_ekf_states];
+	float variances[UKF_N_STATES];
 	for (row = first; row <= last; row++) {
-		variances[row] = cov_mat[row][row];
+		variances[row] = P_UKF(row,row);
 	}
 
 	// zero rows and columns
-	zeroRows(cov_mat, first, last);
-	zeroCols(cov_mat, first, last);
+	zeroCovMat(first, last);
 
 	// restore diagonals
 	for (row = first; row <= last; row++) {
-		cov_mat[row][row] = variances[row];
+		P_UKF(row,row) = variances[row];
 	}
 }
 
-void Ekf::setDiag(float (&cov_mat)[_num_ekf_states][_num_ekf_states], uint8_t first, uint8_t last, float variance)
+void Ekf::setDiag(uint8_t first, uint8_t last, float variance)
 {
 	// zero rows and columns
-	zeroRows(cov_mat, first, last);
-	zeroCols(cov_mat, first, last);
+	zeroCovMat(first, last);
 
 	// set diagonals
 	uint8_t row;
 	for (row = first; row <= last; row++) {
-		cov_mat[row][row] = variance;
+		P_UKF(row,row) = variance;
 	}
 
 }

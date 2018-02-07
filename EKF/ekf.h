@@ -671,11 +671,11 @@ private:
 	void zeroCovMat(uint8_t first, uint8_t last);
 
 	// zero the specified range of off diagonals in the state covariance matrix
-	void zeroOffDiag(float (&cov_mat)[_num_ekf_states][_num_ekf_states], uint8_t first, uint8_t last);
+	void zeroOffDiag(uint8_t first, uint8_t last);
 
 	// zero the specified range of off diagonals in the state covariance matrix
 	// set the diagonals to the supplied value
-	void setDiag(float (&cov_mat)[_num_ekf_states][_num_ekf_states], uint8_t first, uint8_t last, float variance);
+	void setDiag(uint8_t first, uint8_t last, float variance);
 
 	// calculate the measurement variance for the optical flow sensor
 	float calcOptFlowMeasVar();
