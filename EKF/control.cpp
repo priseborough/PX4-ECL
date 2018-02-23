@@ -116,11 +116,11 @@ void Ekf::controlFusionModes()
 
 	// control use of observations for aiding
 	controlMagFusion();
-	//controlOpticalFlowFusion();
+	// TODO controlOpticalFlowFusion();
 	controlGpsFusion();
-	//controlAirDataFusion();
-	//controlBetaFusion();
-	//controlDragFusion();
+	// TODO controlAirDataFusion();
+	// TODO controlBetaFusion();
+	// TODO controlDragFusion();
 	controlHeightFusion();
 
 	// For efficiency, fusion of direct state observations for position and velocity is performed sequentially
@@ -128,10 +128,10 @@ void Ekf::controlFusionModes()
 	controlVelPosFusion();
 
 	// Additional data from an external vision pose estimator can be fused.
-	//controlExternalVisionFusion();
+	// TODO controlExternalVisionFusion();
 
 	// Additional NE velocity data from an auxiliary sensor can be fused
-	//controlAuxVelFusion();
+	// TODO controlAuxVelFusion();
 
 	// report dead reckoning if we are no longer fusing measurements that directly constrain velocity drift
 	_is_dead_reckoning = (_time_last_imu - _time_last_pos_fuse > _params.no_aid_timeout_max)
@@ -1312,10 +1312,10 @@ void Ekf::controlMagFusion()
 
 		// fuse magnetometer data using the selected methods
 		if (_control_status.flags.mag_3D && _control_status.flags.yaw_align) {
-			//fuseMag();
+			// TODO fuseMag();
 
 			if (_control_status.flags.mag_dec) {
-				//fuseDeclination();
+				// TODO fuseDeclination();
 			}
 
 		} else if (_control_status.flags.mag_hdg && _control_status.flags.yaw_align) {

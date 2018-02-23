@@ -293,8 +293,6 @@ private:
 
 	// LEGACY EKF - remove declarations as required
 
-	static constexpr uint8_t _num_ekf_states{24};		///< number of states
-
 	static constexpr float _k_earth_rate{0.000072921f};	///< earth spin rate (rad/sec)
 	static constexpr float _gravity_mss{9.80665f};		///< average earth gravity at sea level (m/sec**2)
 
@@ -380,8 +378,6 @@ private:
 	bool _yaw_angle_observable{false};	///< true when there is enough horizontal acceleration to make yaw observable
 	uint64_t _time_yaw_started{0};		///< last system time in usec that a yaw rotation moaneouvre was detected
 	uint8_t _num_bad_flight_yaw_events{0};	///< number of times a bad heading has been detected in flight and required a yaw reset
-
-	float P[_num_ekf_states][_num_ekf_states] {};	///< state covariance matrix
 
 	float _vel_pos_innov[6] {};	///< NED velocity and position innovations: 0-2 vel (m/sec),  3-5 pos (m)
 	float _vel_pos_innov_var[6] {};	///< NED velocity and position innovation variances: 0-2 vel ((m/sec)**2), 3-5 pos (m**2)
@@ -660,12 +656,6 @@ private:
 
 	// set control flags to use external vision height
 	void setControlEVHeight();
-
-	// zero the specified range of rows in the state covariance matrix
-	void zeroRows(float (&cov_mat)[_num_ekf_states][_num_ekf_states], uint8_t first, uint8_t last);
-
-	// zero the specified range of columns in the state covariance matrix
-	void zeroCols(float (&cov_mat)[_num_ekf_states][_num_ekf_states], uint8_t first, uint8_t last);
 
 	// zero all covariance data in the specified index range
 	void zeroCovMat(uint8_t first, uint8_t last);

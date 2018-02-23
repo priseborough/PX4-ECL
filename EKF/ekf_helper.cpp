@@ -1185,26 +1185,6 @@ void Ekf::fuse(float *K, float innovation)
 	}
 }
 
-// zero specified range of rows in the state covariance matrix
-void Ekf::zeroRows(float (&cov_mat)[_num_ekf_states][_num_ekf_states], uint8_t first, uint8_t last)
-{
-	uint8_t row;
-
-	for (row = first; row <= last; row++) {
-		memset(&cov_mat[row][0], 0, sizeof(cov_mat[0][0]) * 24);
-	}
-}
-
-// zero specified range of columns in the state covariance matrix
-void Ekf::zeroCols(float (&cov_mat)[_num_ekf_states][_num_ekf_states], uint8_t first, uint8_t last)
-{
-	uint8_t row;
-
-	for (row = 0; row <= 23; row++) {
-		memset(&cov_mat[row][first], 0, sizeof(cov_mat[0][0]) * (1 + last - first));
-	}
-}
-
 void Ekf::zeroCovMat(uint8_t first, uint8_t last)
 {
 	// zero rows
