@@ -234,14 +234,14 @@ void Ekf::fuseAirspeed()
 
 void Ekf::get_wind_velocity(float *wind)
 {
-	wind[0] = _state.wind_vel(0);
-	wind[1] = _state.wind_vel(1);
+	wind[0] = _ukf_states.data.wind_vel(0);
+	wind[1] = _ukf_states.data.wind_vel(1);
 }
 
 void Ekf::get_wind_velocity_var(float *wind_var)
 {
-	wind_var[0] = P[22][22];
-	wind_var[1] = P[23][23];
+	wind_var[0] = P_UKF(21,21);
+	wind_var[1] = P_UKF(22,22);
 }
 
 void Ekf::get_true_airspeed(float *tas)
@@ -256,17 +256,17 @@ void Ekf::get_true_airspeed(float *tas)
 void Ekf::resetWindStates()
 {
 	// get euler yaw angle
-	Eulerf euler321(_state.quat_nominal);
+	Eulerf euler321(_ukf_states.data.quat);
 	float euler_yaw = euler321(2);
 
 	if (_tas_data_ready && (_imu_sample_delayed.time_us - _airspeed_sample_delayed.time_us < (uint64_t)5e5)) {
 		// estimate wind using zero sideslip assumption and airspeed measurement if airspeed available
-		_state.wind_vel(0) = _state.vel(0) - _airspeed_sample_delayed.true_airspeed * cosf(euler_yaw);
-		_state.wind_vel(1) = _state.vel(1) - _airspeed_sample_delayed.true_airspeed * sinf(euler_yaw);
+		_ukf_states.data.wind_vel(0) = _ukf_states.data.vel(0) - _airspeed_sample_delayed.true_airspeed * cosf(euler_yaw);
+		_ukf_states.data.wind_vel(1) = _ukf_states.data.vel(1) - _airspeed_sample_delayed.true_airspeed * sinf(euler_yaw);
 
 	} else {
 		// If we don't have an airspeed measurement, then assume the wind is zero
-		_state.wind_vel(0) = 0.0f;
-		_state.wind_vel(1) = 0.0f;
+		_ukf_states.data.wind_vel(0) = 0.0f;
+		_ukf_states.data.wind_vel(1) = 0.0f;
 	}
 }
