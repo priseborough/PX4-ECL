@@ -1,4 +1,4 @@
-// SWIG Wrapper for the ecl's EKF
+// SWIG Wrapper for the ecl's UKF
 %module(directors="1") ecl
 %feature("autodoc", "3");
 
@@ -11,8 +11,8 @@
 %{
     #define SWIG_FILE_WITH_INIT
     #include <iostream>
-    #include "../EKF/ekf.h"
-    #include "../EKF/geo.h"
+    #include "../UKF/ukf.h"
+    #include "../UKF/geo.h"
 %}
 
 %include "numpy.i"
@@ -27,7 +27,7 @@
 %apply (float IN_ARRAY1[ANY]) {(float mag_data[3])};
 
 %inline {
-    struct ekf_control_mode_flags_t {
+    struct ukf_control_mode_flags_t {
         bool tilt_align; // 0 - true if the filter tilt alignment is complete
         bool yaw_align; // 1 - true if the filter yaw alignment is complete
         bool gps; // 2 - true if GPS measurements are being fused
@@ -70,7 +70,7 @@
         }
     };
 
-    struct ekf_fault_status_flags_t {
+    struct ukf_fault_status_flags_t {
         bool bad_mag_x;	// 0 - true if the fusion of the magnetometer X-axis has encountered a numerical error
         bool bad_mag_y;	// 1 - true if the fusion of the magnetometer Y-axis has encountered a numerical error
         bool bad_mag_z;	// 2 - true if the fusion of the magnetometer Z-axis has encountered a numerical error
@@ -109,7 +109,7 @@
         }
     };
 
-    struct ekf_imu_sample_t {
+    struct ukf_imu_sample_t {
         float delta_ang_x;	// delta angle in body frame (integrated gyro measurements)
         float delta_ang_y;	// delta angle in body frame (integrated gyro measurements)
         float delta_ang_z;	// delta angle in body frame (integrated gyro measurements)
@@ -149,11 +149,11 @@
 %include "../matrix/matrix/Euler.hpp"
 %include "../matrix/matrix/SquareMatrix.hpp"
 %include "../matrix/matrix/helper_functions.hpp"
-%include "../EKF/common.h"
-%include "../EKF/estimator_interface.h"
-%include "../EKF/ekf.h"
+%include "../UKF/common.h"
+%include "../UKF/estimator_interface.h"
+%include "../UKF/ukf.h"
 
-%extend Ekf {
+%extend Ukf {
     void set_imu_data(uint64_t time_usec, uint64_t delta_ang_dt, uint64_t delta_vel_dt,  float delta_ang[3], float delta_vel[3]) {
         for (int i = 0; i < 3; ++i) {
             last_imu_delta_ang[i] = delta_ang[i];
@@ -174,11 +174,11 @@
     }
 
     %rename (get_control_mode) get_control_mode_;
-    ekf_control_mode_flags_t get_control_mode_() {
+    ukf_control_mode_flags_t get_control_mode_() {
         filter_control_status_u result_union;
         self->get_control_mode(&result_union.value);
 
-        ekf_control_mode_flags_t result;
+	ukf_control_mode_flags_t result;
         result.tilt_align = result_union.flags.tilt_align; // 0 - true if the filter tilt alignment is complete
         result.yaw_align = result_union.flags.yaw_align; // 1 - true if the filter yaw alignment is complete
         result.gps = result_union.flags.gps; // 2 - true if GPS measurements are being fused
@@ -201,11 +201,11 @@
     }
 
    %rename (get_filter_fault_status) get_filter_fault_status_;
-   ekf_fault_status_flags_t get_filter_fault_status_() {
+   ukf_fault_status_flags_t get_filter_fault_status_() {
         fault_status_u result_union;
         self->get_filter_fault_status(&result_union.value);
 
-        ekf_fault_status_flags_t result;
+	ukf_fault_status_flags_t result;
         result.bad_mag_x = result_union.flags.bad_mag_x;
         result.bad_mag_y = result_union.flags.bad_mag_y;
         result.bad_mag_z = result_union.flags.bad_mag_z;
@@ -226,9 +226,9 @@
    }
 
    %rename (get_imu_sample_delayed) get_imu_sample_delayed_;
-   ekf_imu_sample_t get_imu_sample_delayed_() {
+   ukf_imu_sample_t get_imu_sample_delayed_() {
        imuSample result_sample = self->get_imu_sample_delayed();
-       ekf_imu_sample_t result;
+       ukf_imu_sample_t result;
        result.delta_ang_x = result_sample.delta_ang(0);
        result.delta_ang_y = result_sample.delta_ang(1);
        result.delta_ang_z = result_sample.delta_ang(2);

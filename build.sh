@@ -37,17 +37,17 @@ set -e
 
 if [ -z ${RUN_PYTEST} ];
 then
-    # Build EKF shared library.
+    # Build UKF shared library.
     mkdir Build -p
     cd Build
-    cmake ../EKF
+    cmake ../UKF
     make
     cd ..
 else
-    # Build EKF shared library.
+    # Build UKF shared library.
     mkdir Build -p
     cd Build
-    cmake -DPythonTests=1 ../EKF
+    cmake -DPythonTests=1 ../UKF
     make pytest
     make pytest-quick
     make pytest-plots

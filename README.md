@@ -8,11 +8,7 @@ This library solves the estimation & control problems of a number of robots and 
 
 The library is BSD 3-clause licensed.
 
-## EKF Documentation
-
-  * [EKF Documentation and Tuning Guide](https://dev.px4.io/en/tutorials/tuning_the_ecl_ekf.html)
-
-## Building EKF
+## Building UKF
 
 ### Prerequisites:
 
@@ -24,7 +20,7 @@ By following the steps mentioned below you can create a shared library which can
 ```
 mkdir Build/
 cd Build/
-cmake ../EKF
+cmake ../UKF
 make
 ```
 

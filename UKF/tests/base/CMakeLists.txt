@@ -30,35 +30,13 @@
 # POSSIBILITY OF SUCH DAMAGE.
 #
 ############################################################################
-
 px4_add_module(
-	MODULE lib__ecl
-	STACK_MAIN 6000
-	STACK_MAX 6000
+	MODULE lib__ecl__UKF__tests__base
+	MAIN base
+	STACK_MAIN 4096
 	COMPILE_FLAGS
 	SRCS
-		attitude_fw/ecl_controller.cpp
-		attitude_fw/ecl_pitch_controller.cpp
-		attitude_fw/ecl_roll_controller.cpp
-		attitude_fw/ecl_wheel_controller.cpp
-		attitude_fw/ecl_yaw_controller.cpp
-		UKF/airspeed_fusion.cpp
-		UKF/control.cpp
-		UKF/covariance.cpp
-		UKF/ukf.cpp
-		UKF/ukf_helper.cpp
-		UKF/estimator_interface.cpp
-		UKF/gps_checks.cpp
-		UKF/mag_fusion.cpp
-		UKF/optflow_fusion.cpp
-		UKF/sideslip_fusion.cpp
-		UKF/terrain_estimator.cpp
-		UKF/vel_pos_fusion.cpp
-		UKF/drag_fusion.cpp
-		l1/ecl_l1_pos_controller.cpp
-		tecs/tecs.cpp
-		validation/data_validator.cpp
-		validation/data_validator_group.cpp
+		base.cpp
 	DEPENDS
 		platforms__common
 	)
