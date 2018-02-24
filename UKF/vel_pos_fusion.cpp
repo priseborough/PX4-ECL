@@ -308,3 +308,153 @@ void Ukf::fuseVelPosHeight()
 		}
 	}
 }
+
+void Ukf::fuseHeight()
+{
+	float R_obs = 1.0f; // observation variances for PD
+	float gate_size = 0.0f; // innovation consistency check gate size
+	float Kfusion[24] = {}; // Kalman gain vector for any single observation - sequential fusion is used
+	float innovation = 0.0f; // local copy of innovations for PD
+
+	// calculate innovations, innovations gate sizes and observation variances
+	if (_fuse_height) {
+		if (_control_status.flags.baro_hgt) {
+			// vertical position innovation - baro measurement has opposite sign to earth z axis
+			innovation = _ukf_states.data.pos(2) + _baro_sample_delayed.hgt - _baro_hgt_offset - _hgt_sensor_offset;
+			// observation variance - user parameter defined
+			R_obs = fmaxf(_params.baro_noise, 0.01f);
+			R_obs = R_obs * R_obs;
+			// innovation gate size
+			gate_size = fmaxf(_params.baro_innov_gate, 1.0f);
+
+			// Compensate for positive static pressure transients (negative vertical position innovations)
+			// casued by rotor wash ground interaction by applying a temporary deadzone to baro innovations.
+			float deadzone_start = 0.25f * _params.baro_noise;
+			float deadzone_end = deadzone_start + _params.gnd_effect_deadzone;
+			if (_control_status.flags.gnd_effect) {
+				if (innovation < -deadzone_start) {
+					if (innovation <= -deadzone_end) {
+						innovation += deadzone_end;
+					} else {
+						innovation = -deadzone_start;
+					}
+				}
+			}
+
+		} else if (_control_status.flags.gps_hgt) {
+			// vertical position innovation - gps measurement has opposite sign to earth z axis
+			innovation = _ukf_states.data.pos(2) + _gps_sample_delayed.hgt - _gps_alt_ref - _hgt_sensor_offset;
+			// observation variance - receiver defined and parameter limited
+			// use scaled horizontal position accuracy assuming typical ratio of VDOP/HDOP
+			float lower_limit = fmaxf(_params.gps_pos_noise, 0.01f);
+			float upper_limit = fmaxf(_params.pos_noaid_noise, lower_limit);
+			R_obs = 1.5f * math::constrain(_gps_sample_delayed.vacc, lower_limit, upper_limit);
+			R_obs = R_obs * R_obs;
+			// innovation gate size
+			gate_size = fmaxf(_params.baro_innov_gate, 1.0f);
+
+		} else if (_control_status.flags.rng_hgt && (_R_rng_to_earth_2_2 > _params.range_cos_max_tilt)) {
+			// use range finder with tilt correction
+			innovation = _ukf_states.data.pos(2) - (-math::max(_range_sample_delayed.rng * _R_rng_to_earth_2_2,
+							     _params.rng_gnd_clearance)) - _hgt_sensor_offset;
+			// observation variance - user parameter defined
+			R_obs = fmaxf((sq(_params.range_noise) + sq(_params.range_noise_scaler * _range_sample_delayed.rng)) * sq(_R_rng_to_earth_2_2), 0.01f);
+			// innovation gate size
+			gate_size = fmaxf(_params.range_innov_gate, 1.0f);
+		} else if (_control_status.flags.ev_hgt) {
+			// calculate the innovation assuming the external vision observaton is in local NED frame
+			innovation = _ukf_states.data.pos(2) - _ev_sample_delayed.posNED(2);
+			// observation variance - defined externally
+			R_obs = fmaxf(_ev_sample_delayed.posErr, 0.01f);
+			R_obs = R_obs * R_obs;
+			// innovation gate size
+			gate_size = fmaxf(_params.ev_innov_gate, 1.0f);
+		}
+
+		// update innovation class variable for logging purposes
+		_vel_pos_innov[5] = innovation;
+	}
+
+	if (_sigma_points_are_stale) {
+		CalcSigmaPoints();
+	}
+
+	// Calculate covariance of predicted output and cross-covariance between state and output taking advantage of direct state observation
+	float Pyy;
+	float Pxy[UKF_N_STATES] = {};
+	Pyy = R_obs;
+	for (int sigma_index=0; sigma_index<UKF_N_SIGMA; sigma_index++) { // lopo through sigma points
+		//Pyy +=  param.ukf.wc(s)*(psi_m(:,s) - y_m)*(psi_m(:,s) - y_m)';
+		Pyy += _ukf_wc[sigma_index] * sq(_sigma_x_a(8,sigma_index) - _sigma_x_a(8,0));
+		for (int state_index=0; state_index<UKF_N_STATES; state_index++) { // loop through states
+			//Pxy += param.ukf.wc(s)*(sigma_x_a(1:param.ukf.nP,si) - x_m)*(psi_m(:,s) - y_m)';
+			Pxy[state_index] += _ukf_wc[sigma_index] * (_sigma_x_a(state_index,sigma_index) - _sigma_x_a(state_index,0)) * (_sigma_x_a(8,sigma_index) - _sigma_x_a(8,0));
+		}
+	}
+
+	// calculate innovation test ratio
+	// compute the innovation variance SK = HPH + R
+	_vel_pos_innov_var[5] = P_UKF(8,8) + R_obs;
+	// Compute the ratio of innovation to gate size
+	_vel_pos_test_ratio[5] = sq(innovation) / (sq(gate_size) * Pyy);
+
+	// check vertical position innovations
+	// always pass height checks if yet to complete tilt alignment
+	bool innov_check_pass = (_vel_pos_test_ratio[5] <= 1.0f) || !_control_status.flags.tilt_align;
+
+	// record the successful height fusion event
+	if (innov_check_pass && _fuse_height) {
+		_time_last_hgt_fuse = _time_last_imu;
+		_innov_check_fail_status.flags.reject_pos_D = false;
+	} else if (!innov_check_pass) {
+		_innov_check_fail_status.flags.reject_pos_D = true;
+	}
+	_fuse_height = false;
+
+	// exit  if innovation checks have failed
+	if (!innov_check_pass) {
+		return;
+	}
+
+	// calculate kalman gain
+	for (int row = 0; row < UKF_N_STATES; row++) {
+		Kfusion[row] = Pxy[row] / Pyy;
+	}
+
+	// update covariance matrix via P = P - K*Pyy*K'
+	float KPK[UKF_N_STATES][UKF_N_STATES];
+	for (unsigned row = 0; row < UKF_N_STATES; row++) {
+		for (unsigned column = 0; column < UKF_N_STATES; column++) {
+			KPK[row][column] = Kfusion[row] * Pyy * Kfusion[column];
+		}
+	}
+
+	// if the covariance correction will result in a negative variance, then
+	// the covariance matrix is unhealthy and must be corrected
+	bool healthy = true;
+	for (int i = 0; i < UKF_N_STATES; i++) {
+		if (P_UKF(i,i) < KPK[i][i]) {
+			// zero rows and columns, record health status and exit
+			zeroCovMat(i,i);
+			healthy = false;
+			_fault_status.flags.bad_pos_D = true;
+			return;
+		} else {
+			_fault_status.flags.bad_pos_D = false;
+		}
+	}
+
+	// apply the covariance corrections
+	for (unsigned row = 0; row < UKF_N_STATES; row++) {
+		for (unsigned column = 0; column < UKF_N_STATES; column++) {
+			P_UKF(row,column) -= KPK[row][column];
+		}
+	}
+	_sigma_points_are_stale = true;
+
+	// correct the covariance marix for gross errors
+	fixCovarianceErrors();
+
+	// apply the state corrections
+	fuse(Kfusion, innovation);
+}

@@ -523,6 +523,9 @@ private:
 	// fuse velocity and position measurements (also barometer height)
 	void fuseVelPosHeight();
 
+	// fuse vertical position measurements
+	void fuseHeight();
+
 	// reset velocity states of the UKF
 	bool resetVelocity();
 
