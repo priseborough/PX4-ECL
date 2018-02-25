@@ -569,7 +569,7 @@ void Ukf::fuseVel()
 	}
 
 	// Set observation noise variance and innovation consistency check gate size for the velocity observations
-	matrix::Matrix<float, 3, 1> innovation;
+	matrix::Matrix<float, 3, 1> innovation = {};
 	matrix::SquareMatrix<float, 3> Pyy = {};
 	float gate_size[3];
 	if (_fuse_hor_vel || _fuse_hor_vel_aux) {
@@ -587,8 +587,7 @@ void Ukf::fuseVel()
 		Pyy(1,1) = _velObsVarNE(1);
 
 	} else {
-		innovation(0,0) = 0.0f;
-		innovation(1,0) = 0.0f;
+		// disable by setting a very large observation variance
 		Pyy(0,0) = 1e9f;
 		Pyy(1,1) = 1e9f;
 
@@ -599,12 +598,12 @@ void Ukf::fuseVel()
 		// observation variance - use receiver reported accuracy with parameter setting the minimum value
 		Pyy(2,2) = fmaxf(_params.gps_vel_noise, 0.01f);
 		// use scaled horizontal speed accuracy assuming typical ratio of VDOP/HDOP
-		Pyy(2,2) = 1.5f * fmaxf(R[2], _gps_sample_delayed.sacc);
+		Pyy(2,2) = 1.5f * fmaxf(Pyy(2,2), _gps_sample_delayed.sacc);
 		Pyy(2,2) = Pyy(2,2) * Pyy(2,2);
+		innovation(2,0) = _vel_pos_innov[2];
 	} else {
 		// disable by setting a very large observation variance
 		Pyy(2,2) = 1e9f;
-		innovation(2,0) = 0.0f;
 	}
 	gate_size[2] = fmaxf(_params.vel_innov_gate, 1.0f);
 
@@ -631,9 +630,8 @@ void Ukf::fuseVel()
 	matrix::SquareMatrix<float, 3> Pyy_inv = inv(Pyy);
 
 	// calculate single measurement innovation test ratios
-	matrix::Matrix<float, 3, 1> innovation = {};
 	for (unsigned index=0; index<3; index++) {
-		_vel_pos_innov_var[index] = P_UKF(index+3,index+3) + R_obs;
+		_vel_pos_innov_var[index] = P_UKF(index+3,index+3) + Pyy(index,index);
 		_vel_pos_test_ratio[index] = sq(innovation(index,0)) / (sq(gate_size[index]) * Pyy(index,index));
 	}
 
