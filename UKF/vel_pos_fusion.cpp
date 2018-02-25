@@ -424,12 +424,10 @@ void Ukf::fuseHeight()
 
 	// if the covariance correction will result in a negative variance, then
 	// the covariance matrix is unhealthy and must be corrected
-	bool healthy = true;
-	for (int i = 0; i < UKF_N_STATES; i++) {
+	for (unsigned i = 0; i < UKF_N_STATES; i++) {
 		if (P_UKF(i,i) < KPK[i][i]) {
 			// zero rows and columns, record health status and exit
 			zeroCovMat(i,i);
-			healthy = false;
 			_fault_status.flags.bad_pos_D = true;
 			return;
 		} else {
@@ -450,4 +448,104 @@ void Ukf::fuseHeight()
 
 	// apply the state corrections
 	fuse(Kfusion, innovation);
+}
+
+void Ukf::fusePos()
+{
+	float R_obs = sq(_posObsNoiseNE); // Observation variance
+
+	if (_sigma_points_are_stale) {
+		CalcSigmaPoints();
+	}
+
+	// Calculate covariance of predicted output and cross-covariance between state and output taking advantae of direct state observation
+	matrix::SquareMatrix<float, 2> Pyy = {};
+	matrix::Matrix<float, UKF_N_STATES, 2> Pxy = {};
+
+	Pyy(0,0) = Pyy(1,1) = R_obs;
+	for (unsigned sigma_index=0; sigma_index<UKF_N_SIGMA; sigma_index++) { // loop through sigma points
+		//Pyy +=  param.ukf.wc(s)*(psi_m(:,s) - y_m)*(psi_m(:,s) - y_m)';
+		for (unsigned row=0; row <2; row++) {
+			for (unsigned col=0; col <2; col++) {
+				Pyy(row,col) += _ukf_wc[sigma_index] * (_sigma_x_a(row+6,sigma_index) - _sigma_x_a(row+6,0)) * (_sigma_x_a(col+6,sigma_index) - _sigma_x_a(col+6,0));
+			}
+		}
+		//Pxy += param.ukf.wc(s)*(sigma_x_a(1:param.ukf.nP,si) - x_m)*(psi_m(:,s) - y_m)';
+		for (unsigned obs_index=0; obs_index<2; obs_index++) { // loop through observations
+			for (unsigned state_index=0; state_index<UKF_N_STATES; state_index++) { // loop through states
+				Pxy(state_index,obs_index) += _ukf_wc[sigma_index] * (_sigma_x_a(state_index,sigma_index) - _sigma_x_a(state_index,0)) * (_sigma_x_a(obs_index+6,sigma_index) - _sigma_x_a(obs_index+6,0));
+			}
+		}
+	}
+	matrix::SquareMatrix<float, 2> Pyy_inv = inv(Pyy);
+
+	// calculate single measurement innovation test ratios
+	matrix::Matrix<float, 2, 1> innovation = {};
+	for (unsigned index=0; index<2; index++) {
+		innovation(index,0) = _vel_pos_innov[index+3];
+		_vel_pos_innov_var[index+3] = P_UKF(index+6,index+6) + R_obs;
+		_vel_pos_test_ratio[index+3] = sq(innovation(index,0)) / (sq(_posInnovGateNE) * Pyy(index,index));
+	}
+
+	// calculate combined ratio for chi-squared test
+	matrix::SquareMatrix<float, 1> innovNorm2 = innovation.transpose() * Pyy_inv * innovation;
+	bool pos_check_pass = (innovNorm2(0,0) <= sq(_posInnovGateNE)) || !_control_status.flags.tilt_align;
+
+	// record the successful position fusion event
+	if (pos_check_pass) {
+		if (!_fuse_hpos_as_odom) {
+			_time_last_pos_fuse = _time_last_imu;
+		} else {
+			_time_last_delpos_fuse = _time_last_imu;
+		}
+		_innov_check_fail_status.flags.reject_pos_NE = false;
+	} else if (!pos_check_pass) {
+		_innov_check_fail_status.flags.reject_pos_NE = true;
+		return;
+	}
+
+	// calculate kalman gain
+	matrix::Matrix<float, UKF_N_STATES, 2> K;
+	K = Pxy*Pyy_inv;
+
+	// update covariance matrix via P = P - K*Pyy*K'
+	matrix::SquareMatrix<float, UKF_N_STATES>  KPK;
+	KPK = K * Pyy * K.transpose();
+
+	// if the covariance correction will result in a negative variance, then
+	// the covariance matrix is unhealthy and must be corrected
+	bool healthy = true;
+	for (unsigned i = 0; i < UKF_N_STATES; i++) {
+		if (P_UKF(i,i) < KPK(i,i)) {
+			zeroCovMat(i,i);
+			healthy = false;
+			_fault_status.flags.bad_pos_N = true;
+			_fault_status.flags.bad_pos_E = true;
+			return;
+		} else {
+			_fault_status.flags.bad_pos_N = false;
+			_fault_status.flags.bad_pos_E = false;
+		}
+	}
+
+	// apply the covariance corrections
+	for (unsigned row = 0; row < UKF_N_STATES; row++) {
+		for (unsigned column = 0; column < UKF_N_STATES; column++) {
+			P_UKF(row,column) -= KPK(row,column);
+		}
+	}
+	_sigma_points_are_stale = true;
+
+	// correct the covariance marix for gross errors
+	fixCovarianceErrors();
+
+	// Update state estimate
+	for (unsigned index=0; index<2; index++) {
+		float K_vector[UKF_N_STATES]; // Kalman gain vector for a single observation
+		for (unsigned row = 0; row < UKF_N_STATES; row++) {
+			K_vector[row] = K(row,0);
+		}
+		fuse(K_vector, innovation(index,0));
+	}
+
 }
