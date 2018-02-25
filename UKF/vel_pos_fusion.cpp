@@ -559,5 +559,140 @@ void Ukf::fusePos()
 		}
 		fuse(K_vector, innovation(index,0));
 	}
+}
 
+void Ukf::fuseVel()
+{
+	if (!_fuse_hor_vel && !_fuse_vert_vel) {
+		// nothing to do
+		return;
+	}
+
+	// Set observation noise variance and innovation consistency check gate size for the velocity observations
+	matrix::Matrix<float, 3, 1> innovation;
+	matrix::SquareMatrix<float, 3> Pyy = {};
+	float gate_size[3];
+	if (_fuse_hor_vel || _fuse_hor_vel_aux) {
+		// handle special case where we are getting velocity observations from an auxiliary source
+		if (_fuse_hor_vel_aux) {
+			innovation(0,0) = _aux_vel_innov[0];
+			innovation(1,0) = _aux_vel_innov[1];
+		} else {
+			innovation(0,0) = _vel_pos_innov[0];
+			innovation(1,0) = _vel_pos_innov[1];
+		}
+
+		// Set observation noise variance and innovation consistency check gate size for the NE position observations
+		Pyy(0,0) = _velObsVarNE(0);
+		Pyy(1,1) = _velObsVarNE(1);
+
+	} else {
+		innovation(0,0) = 0.0f;
+		innovation(1,0) = 0.0f;
+		Pyy(0,0) = 1e9f;
+		Pyy(1,1) = 1e9f;
+
+	}
+	gate_size[1] = gate_size[0] = _hvelInnovGate;
+
+	if (_fuse_vert_vel) {
+		// observation variance - use receiver reported accuracy with parameter setting the minimum value
+		Pyy(2,2) = fmaxf(_params.gps_vel_noise, 0.01f);
+		// use scaled horizontal speed accuracy assuming typical ratio of VDOP/HDOP
+		Pyy(2,2) = 1.5f * fmaxf(R[2], _gps_sample_delayed.sacc);
+		Pyy(2,2) = Pyy(2,2) * Pyy(2,2);
+	} else {
+		// disable by setting a very large observation variance
+		Pyy(2,2) = 1e9f;
+		innovation(2,0) = 0.0f;
+	}
+	gate_size[2] = fmaxf(_params.vel_innov_gate, 1.0f);
+
+	if (_sigma_points_are_stale) {
+		CalcSigmaPoints();
+	}
+
+	// Calculate covariance of predicted output and cross-covariance between state and output taking advantage of direct state observation
+	matrix::Matrix<float, UKF_N_STATES, 3> Pxy = {};
+	for (unsigned sigma_index=0; sigma_index<UKF_N_SIGMA; sigma_index++) { // loop through sigma points
+		//Pyy +=  param.ukf.wc(s)*(psi_m(:,s) - y_m)*(psi_m(:,s) - y_m)';
+		for (unsigned row=0; row <3; row++) {
+			for (unsigned col=0; col <3; col++) {
+				Pyy(row,col) += _ukf_wc[sigma_index] * (_sigma_x_a(row+3,sigma_index) - _sigma_x_a(row+3,0)) * (_sigma_x_a(col+3,sigma_index) - _sigma_x_a(col+3,0));
+			}
+		}
+		//Pxy += param.ukf.wc(s)*(sigma_x_a(1:param.ukf.nP,si) - x_m)*(psi_m(:,s) - y_m)';
+		for (unsigned obs_index=0; obs_index<3; obs_index++) { // loop through observations
+			for (unsigned state_index=0; state_index<UKF_N_STATES; state_index++) { // loop through states
+				Pxy(state_index,obs_index) += _ukf_wc[sigma_index] * (_sigma_x_a(state_index,sigma_index) - _sigma_x_a(state_index,0)) * (_sigma_x_a(obs_index+3,sigma_index) - _sigma_x_a(obs_index+3,0));
+			}
+		}
+	}
+	matrix::SquareMatrix<float, 3> Pyy_inv = inv(Pyy);
+
+	// calculate single measurement innovation test ratios
+	matrix::Matrix<float, 3, 1> innovation = {};
+	for (unsigned index=0; index<3; index++) {
+		_vel_pos_innov_var[index] = P_UKF(index+3,index+3) + R_obs;
+		_vel_pos_test_ratio[index] = sq(innovation(index,0)) / (sq(gate_size[index]) * Pyy(index,index));
+	}
+
+	// calculate combined ratio for chi-squared test
+	matrix::SquareMatrix<float, 1> innovNorm2 = innovation.transpose() * Pyy_inv * innovation;
+	bool vel_check_pass = (innovNorm2(0,0) <= sq(_posInnovGateNE));
+
+	// record the velocity fusion event
+	_fuse_hor_vel = _fuse_hor_vel_aux = _fuse_vert_vel = false;
+	if (vel_check_pass) {
+		_time_last_vel_fuse = _time_last_imu;
+		_innov_check_fail_status.flags.reject_vel_NED = false;
+	} else if (!vel_check_pass) {
+		_innov_check_fail_status.flags.reject_vel_NED = true;
+	}
+
+	// calculate kalman gain
+	matrix::Matrix<float, UKF_N_STATES, 3> K;
+	K = Pxy*Pyy_inv;
+
+	// update covariance matrix via P = P - K*Pyy*K'
+	matrix::SquareMatrix<float, UKF_N_STATES>  KPK;
+	KPK = K * Pyy * K.transpose();
+
+	// if the covariance correction will result in a negative variance, then
+	// the covariance matrix is unhealthy and must be corrected
+	bool healthy = true;
+	for (unsigned i = 0; i < UKF_N_STATES; i++) {
+		if (P_UKF(i,i) < KPK(i,i)) {
+			zeroCovMat(i,i);
+			healthy = false;
+			_fault_status.flags.bad_vel_N = true;
+			_fault_status.flags.bad_vel_E = true;
+			_fault_status.flags.bad_vel_D = true;
+			return;
+		} else {
+			_fault_status.flags.bad_vel_N = false;
+			_fault_status.flags.bad_vel_E = false;
+			_fault_status.flags.bad_vel_D = true;
+		}
+	}
+
+	// apply the covariance corrections
+	for (unsigned row = 0; row < UKF_N_STATES; row++) {
+		for (unsigned column = 0; column < UKF_N_STATES; column++) {
+			P_UKF(row,column) -= KPK(row,column);
+		}
+	}
+	_sigma_points_are_stale = true;
+
+	// correct the covariance marix for gross errors
+	fixCovarianceErrors();
+
+	// Update state estimate
+	for (unsigned index=0; index<3; index++) {
+		float K_vector[UKF_N_STATES]; // Kalman gain vector for a single observation
+		for (unsigned row = 0; row < UKF_N_STATES; row++) {
+			K_vector[row] = K(row,0);
+		}
+		fuse(K_vector, innovation(index,0));
+	}
 }

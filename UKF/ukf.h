@@ -529,6 +529,9 @@ private:
 	// fuse horizontal position measurements
 	void fusePos();
 
+	// fuse horizontal position measurements
+	void fuseVel();
+
 	// reset velocity states of the UKF
 	bool resetVelocity();
 
