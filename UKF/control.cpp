@@ -296,12 +296,8 @@ void Ukf::controlExternalVisionFusion()
 		}
 
 		// Fuse available NED position data into the main filter
-		if (_fuse_height || _fuse_pos) {
-			fuseVelPosHeight();
-			_fuse_pos = _fuse_height = false;
-			_fuse_hpos_as_odom = false;
-
-		}
+		fusePos();
+		fuseHeight();
 
 		// determine if we should use the yaw observation
 		if (_control_status.flags.ev_yaw) {
@@ -1367,10 +1363,10 @@ void Ukf::controlVelPosFusion()
 	}
 
 	// Fuse available NED velocity and position data into the main filter
-	if (_fuse_height || _fuse_pos || _fuse_hor_vel || _fuse_vert_vel) {
-		fuseVelPosHeight();
+	fuseVel();
+	fusePos();
+	fuseHeight();
 
-	}
 }
 
 void Ukf::controlAuxVelFusion()
@@ -1385,6 +1381,6 @@ void Ukf::controlAuxVelFusion()
 		_aux_vel_innov[1] = _ukf_states.data.vel(1) - _auxvel_sample_delayed.velNE(1);
 		_velObsVarNE = _auxvel_sample_delayed.velVarNE;
 		_hvelInnovGate = _params.auxvel_gate;
-		fuseVelPosHeight();
+		fuseVel();
 	}
 }
