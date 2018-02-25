@@ -407,7 +407,7 @@ void Ukf::fuseHeight()
 
 	// record the height fusion event
 	_fuse_height = false;
-	if (innov_check_pass && _fuse_height) {
+	if (innov_check_pass) {
 		_time_last_hgt_fuse = _time_last_imu;
 		_innov_check_fail_status.flags.reject_pos_D = false;
 	} else if (!innov_check_pass) {
@@ -521,8 +521,7 @@ void Ukf::fusePos()
 	K = Pxy*Pyy_inv;
 
 	// update covariance matrix via P = P - K*Pyy*K'
-	matrix::SquareMatrix<float, UKF_N_STATES>  KPK;
-	KPK = K * Pyy * K.transpose();
+	matrix::SquareMatrix<float, UKF_N_STATES>  KPK = K * Pyy * K.transpose();
 
 	// if the covariance correction will result in a negative variance, then
 	// the covariance matrix is unhealthy and must be corrected
@@ -555,7 +554,7 @@ void Ukf::fusePos()
 	for (unsigned index=0; index<2; index++) {
 		float K_vector[UKF_N_STATES]; // Kalman gain vector for a single observation
 		for (unsigned row = 0; row < UKF_N_STATES; row++) {
-			K_vector[row] = K(row,0);
+			K_vector[row] = K(row,index);
 		}
 		fuse(K_vector, innovation(index,0));
 	}
@@ -689,7 +688,7 @@ void Ukf::fuseVel()
 	for (unsigned index=0; index<3; index++) {
 		float K_vector[UKF_N_STATES]; // Kalman gain vector for a single observation
 		for (unsigned row = 0; row < UKF_N_STATES; row++) {
-			K_vector[row] = K(row,0);
+			K_vector[row] = K(row,index);
 		}
 		fuse(K_vector, innovation(index,0));
 	}
