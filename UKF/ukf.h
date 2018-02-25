@@ -520,11 +520,6 @@ private:
 	// fuse body frame drag specific forces for multi-rotor wind estimation
 	void fuseDrag();
 
-	// fuse velocity, position and height measurements as uncorrelated observations using a sequential fusion method
-	// this method does not update sigma points between sequential fusion updates and is therefore and is therefore a lower accuracy
-	// lower computational cost option that can be removed later
-	void fuseVelPosHeight();
-
 	// fuse vertical position measurements
 	void fuseHeight();
 
