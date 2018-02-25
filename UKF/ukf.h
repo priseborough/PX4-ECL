@@ -520,7 +520,7 @@ private:
 	// fuse body frame drag specific forces for multi-rotor wind estimation
 	void fuseDrag();
 
-	// fuse velocity and position measurements (also barometer height)
+	// fuse velocity, position and height measurements as uncorrelated observations using a sequential fusion method
 	void fuseVelPosHeight();
 
 	// fuse vertical position measurements

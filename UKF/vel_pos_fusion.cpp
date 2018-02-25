@@ -311,6 +311,11 @@ void Ukf::fuseVelPosHeight()
 
 void Ukf::fuseHeight()
 {
+	if (!_fuse_height) {
+		// nothing to do
+		return;
+	}
+
 	float R_obs = 1.0f; // observation variances for PD
 	float gate_size = 0.0f; // innovation consistency check gate size
 	float Kfusion[UKF_N_STATES] = {}; // Kalman gain vector for any single observation - sequential fusion is used
@@ -400,7 +405,8 @@ void Ukf::fuseHeight()
 	// always pass height checks if yet to complete tilt alignment
 	bool innov_check_pass = (_vel_pos_test_ratio[5] <= 1.0f) || !_control_status.flags.tilt_align;
 
-	// record the successful height fusion event
+	// record the height fusion event
+	_fuse_height = false;
 	if (innov_check_pass && _fuse_height) {
 		_time_last_hgt_fuse = _time_last_imu;
 		_innov_check_fail_status.flags.reject_pos_D = false;
@@ -452,6 +458,11 @@ void Ukf::fuseHeight()
 
 void Ukf::fusePos()
 {
+	if (!_fuse_pos) {
+		// nothing to do
+		return;
+	}
+
 	float R_obs = sq(_posObsNoiseNE); // Observation variance
 
 	if (_sigma_points_are_stale) {
@@ -491,7 +502,8 @@ void Ukf::fusePos()
 	matrix::SquareMatrix<float, 1> innovNorm2 = innovation.transpose() * Pyy_inv * innovation;
 	bool pos_check_pass = (innovNorm2(0,0) <= sq(_posInnovGateNE)) || !_control_status.flags.tilt_align;
 
-	// record the successful position fusion event
+	// record the position fusion event
+	_fuse_pos = false;
 	if (pos_check_pass) {
 		if (!_fuse_hpos_as_odom) {
 			_time_last_pos_fuse = _time_last_imu;
