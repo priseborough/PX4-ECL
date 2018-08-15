@@ -479,6 +479,9 @@ private:
 	// fuse the first euler angle from either a 321 or 312 rotation sequence as the observation (currently measures yaw using the magnetometer)
 	void fuseHeading();
 
+	// fuse the yaw angle obtained from a dual antenna GPS unit
+	void fuseGpsAntYaw();
+
 	// fuse magnetometer declination measurement
 	void fuseDeclination();
 

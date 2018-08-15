@@ -511,6 +511,79 @@ void Ekf::controlGpsFusion()
 	// Check for new GPS data that has fallen behind the fusion time horizon
 	if (_gps_data_ready) {
 
+		// GPS yaw aiding selection logic
+		if ((_params.fusion_mode & MASK_USE_GPSYAW) && !_control_status.flags.gps_yaw && _control_status.flags.tilt_align) {
+			// don't start using GPS data unless data is arriving frequently
+			if (_time_last_imu - _time_last_gps < 2 * GPS_MAX_INTERVAL) {
+				// reset the yaw angle to the value from the observaton quaternion
+				// get the roll, pitch, yaw estimates from the quaternion states
+				Quatf q_init(_state.quat_nominal);
+				Eulerf euler_init(q_init);
+
+				// get initial yaw from the observation quaternion
+				const gpsSample &gps_newest = _gps_buffer.get_newest();
+				if (isfinite(gps_newest.yaw)) {
+
+					// define the predicted antenna array vector, rotate into earth frame
+					// and calculate predicted antenna yaw angle
+					Vector3f ant_vec_bf = {cosf(_gps_yaw_offset), sinf(_gps_yaw_offset), 0.0f};
+					Vector3f ant_vec_ef = _R_to_earth * ant_vec_bf;
+					float predicted_yaw =  atan2f(ant_vec_ef(1),ant_vec_ef(0));
+
+					// get measurement and correct for antenna array yaw offset
+					float measured_yaw = _gps_sample_delayed.yaw + _gps_yaw_offset;
+
+					// caclulate the amount the yaw needs to be rotated by
+					float yaw_delta = wrap_pi(measured_yaw - predicted_yaw);
+
+					// save a copy of the quaternion state for later use in calculating the amount of reset change
+					Quatf quat_before_reset = _state.quat_nominal;
+
+					// correct the yaw angle
+					euler_init(2) += yaw_delta;
+					euler_init(2) = wrap_pi(euler_init(2));
+
+					// calculate initial quaternion states for the ekf
+					_state.quat_nominal = Quatf(euler_init);
+
+					// calculate the amount that the quaternion has changed by
+					_state_reset_status.quat_change = quat_before_reset.inversed() * _state.quat_nominal;
+
+					// add the reset amount to the output observer buffered data
+					// Note q1 *= q2 is equivalent to q1 = q2 * q1
+					for (uint8_t i = 0; i < _output_buffer.get_length(); i++) {
+						_output_buffer[i].quat_nominal *= _state_reset_status.quat_change;
+					}
+
+					// apply the change in attitude quaternion to our newest quaternion estimate
+					// which was already taken out from the output buffer
+					_output_new.quat_nominal = _state_reset_status.quat_change * _output_new.quat_nominal;
+
+					// capture the reset event
+					_state_reset_status.quat_counter++;
+
+					// flag the yaw as aligned
+					_control_status.flags.yaw_align = true;
+
+					// turn on fusion of external vision yaw measurements and disable all other yaw fusion
+					_control_status.flags.gps_yaw = true;
+					_control_status.flags.ev_yaw = false;
+					_control_status.flags.mag_hdg = false;
+					_control_status.flags.mag_3D = false;
+					_control_status.flags.mag_dec = false;
+
+					ECL_INFO("EKF commencing GPS yaw fusion");
+					// flag the yaw as aligned
+					_control_status.flags.yaw_align = true;
+				}
+			}
+		}
+
+		// fuse the yaw observation
+		if (_control_status.flags.gps_yaw) {
+			fuseGpsAntYaw();
+		}
+
 		// Determine if we should use GPS aiding for velocity and horizontal position
 		// To start using GPS we need angular alignment completed, the local NED origin set and GPS data that has not failed checks recently
 		bool gps_checks_passing = (_time_last_imu - _last_gps_fail_us > (uint64_t)5e6);
@@ -1310,6 +1383,15 @@ void Ekf::controlDragFusion()
 
 void Ekf::controlMagFusion()
 {
+	if (_params.mag_fusion_type >= MAG_FUSE_TYPE_NONE) {
+		// do not use the magnetomer and deactivate magnetic field states
+		zeroRows(P, 16, 21);
+		zeroCols(P, 16, 21);
+		_control_status.flags.mag_hdg = false;
+		_control_status.flags.mag_3D = false;
+		return;
+	}
+
 	// If we are on ground, store the local position and time to use as a reference
 	// Also reset the flight alignment flag so that the mag fields will be re-initialised next time we achieve flight altitude
 	if (!_control_status.flags.in_air) {
