@@ -303,6 +303,18 @@ void TECS::_update_energy_estimates()
 
 void TECS::_update_throttle_setpoint(const float throttle_cruise, const matrix::Dcmf &rotMat)
 {
+	if (_tecs_mode == ECL_TECS_MODE_VTOL_FRONT_TRANSITION) {
+		_throttle_setpoint += 0.5f * _dt;
+		_throttle_setpoint = constrain(_throttle_setpoint, 0.0f, 1.0f);
+
+		// reset front transition flag, caller has to set it on every iteration
+		_in_front_transition = false;
+
+		// update slew rate state
+		_last_throttle_setpoint = _throttle_setpoint;
+		return;
+	}
+
 	// Calculate total energy error
 	_STE_error = _SPE_setpoint - _SPE_estimate + _SKE_setpoint - _SKE_estimate;
 
@@ -349,14 +361,6 @@ void TECS::_update_throttle_setpoint(const float throttle_cruise, const matrix::
 		_throttle_setpoint = (_STE_error + _STE_rate_error * _throttle_damping_gain) * STE_to_throttle + throttle_predicted;
 		_throttle_setpoint = constrain(_throttle_setpoint, _throttle_setpoint_min, _throttle_setpoint_max);
 
-		// Rate limit the throttle demand
-		if (fabsf(_throttle_slewrate) > 0.01f) {
-			float throttle_increment_limit = _dt * (_throttle_setpoint_max - _throttle_setpoint_min) * _throttle_slewrate;
-			_throttle_setpoint = constrain(_throttle_setpoint, _last_throttle_setpoint - throttle_increment_limit,
-						       _last_throttle_setpoint + throttle_increment_limit);
-		}
-
-		_last_throttle_setpoint = _throttle_setpoint;
 
 		if (_integrator_gain > 0.0f) {
 			// Calculate throttle integrator state upper and lower limits with allowance for
@@ -392,7 +396,16 @@ void TECS::_update_throttle_setpoint(const float throttle_cruise, const matrix::
 
 		}
 
+		// Rate limit the throttle demand
+		if (fabsf(_throttle_slewrate) > 0.01f) {
+			float throttle_increment_limit = _dt * (_throttle_setpoint_max - _throttle_setpoint_min) * _throttle_slewrate;
+			_throttle_setpoint = constrain(_throttle_setpoint, _last_throttle_setpoint - throttle_increment_limit,
+						       _last_throttle_setpoint + throttle_increment_limit);
+		}
+
 		_throttle_setpoint = constrain(_throttle_setpoint, _throttle_setpoint_min, _throttle_setpoint_max);
+
+		_last_throttle_setpoint = _throttle_setpoint;
 	}
 }
 
@@ -528,7 +541,15 @@ void TECS::_initialize_states(float pitch, float throttle_cruise, float baro_alt
 		_tas_state = _EAS * EAS2TAS;
 		_throttle_integ_state =  0.0f;
 		_pitch_integ_state = 0.0f;
-		_last_throttle_setpoint = (_in_air ? throttle_cruise : 0.0f);;
+
+		if (_in_air) {
+			// if we are in air but currently doing a VTOL transition to forward flight then we should start ramping the throttle from 0
+			_last_throttle_setpoint = _in_front_transition ? 0.0f : throttle_cruise;
+		} else {
+			_last_throttle_setpoint = 0.0f;
+		}
+
+		_last_throttle_setpoint = (_in_air ? 0 : 0.0f);
 		_last_pitch_setpoint = constrain(pitch, _pitch_setpoint_min, _pitch_setpoint_max);
 		_pitch_setpoint_unc = _last_pitch_setpoint;
 		_hgt_setpoint_adj_prev = baro_altitude;
@@ -587,6 +608,10 @@ void TECS::update_pitch_throttle(const matrix::Dcmf &rotMat, float pitch, float 
 	uint64_t now = ecl_absolute_time();
 	_dt = constrain((now - _pitch_update_timestamp) * 1e-6f, DT_MIN, DT_MAX);
 
+	if (_pitch_update_timestamp == 0) {
+		_dt = DT_DEFAULT;
+	}
+
 	// Set class variables from inputs
 	_throttle_setpoint_max = throttle_max;
 	_throttle_setpoint_min = throttle_min;
@@ -633,7 +658,9 @@ void TECS::update_pitch_throttle(const matrix::Dcmf &rotMat, float pitch, float 
 	_pitch_update_timestamp = now;
 
 	// Set TECS mode for next frame
-	if (_underspeed_detected) {
+	if (_in_front_transition) {
+		_tecs_mode = ECL_TECS_MODE_VTOL_FRONT_TRANSITION;
+	} else if (_underspeed_detected) {
 		_tecs_mode = ECL_TECS_MODE_UNDERSPEED;
 
 	} else if (_uncommanded_descent_recovery) {
@@ -646,5 +673,4 @@ void TECS::update_pitch_throttle(const matrix::Dcmf &rotMat, float pitch, float 
 		// This is the default operation mode
 		_tecs_mode = ECL_TECS_MODE_NORMAL;
 	}
-
 }
