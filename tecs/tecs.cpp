@@ -307,9 +307,6 @@ void TECS::_update_throttle_setpoint(const float throttle_cruise, const matrix::
 		_throttle_setpoint += 0.5f * _dt;
 		_throttle_setpoint = constrain(_throttle_setpoint, 0.0f, 1.0f);
 
-		// reset front transition flag, caller has to set it on every iteration
-		_in_front_transition = false;
-
 		// update slew rate state
 		_last_throttle_setpoint = _throttle_setpoint;
 		return;
@@ -544,7 +541,7 @@ void TECS::_initialize_states(float pitch, float throttle_cruise, float baro_alt
 
 		if (_in_air) {
 			// if we are in air but currently doing a VTOL transition to forward flight then we should start ramping the throttle from 0
-			_last_throttle_setpoint = _in_front_transition ? 0.0f : throttle_cruise;
+			_last_throttle_setpoint = 0.0f;
 		} else {
 			_last_throttle_setpoint = 0.0f;
 		}
@@ -673,4 +670,6 @@ void TECS::update_pitch_throttle(const matrix::Dcmf &rotMat, float pitch, float 
 		// This is the default operation mode
 		_tecs_mode = ECL_TECS_MODE_NORMAL;
 	}
+
+	_in_front_transition = false;
 }
