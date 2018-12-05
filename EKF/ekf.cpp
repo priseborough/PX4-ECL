@@ -259,7 +259,6 @@ bool Ekf::initialiseFilter()
 		if ((_params.fusion_mode & MASK_USE_EVYAW) && !ev_count_fail) {
 			// flag the yaw as aligned
 			_control_status.flags.yaw_align =  realignYawExtVis();
-			printf("EV yaw align\n");
 
 		} else if (_params.mag_fusion_type != MAG_FUSE_TYPE_NONE) {
 			// calculate the averaged magnetometer reading
@@ -283,7 +282,6 @@ bool Ekf::initialiseFilter()
 			// if we are using external vision data for height, then the vertical position state needs to be reset
 			// because the initialisation position is not the zero datum
 			resetHeight();
-			printf("EV height align\n");
 		}
 
 		// initialise the state covariance matrix
