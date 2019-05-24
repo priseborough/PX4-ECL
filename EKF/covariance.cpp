@@ -56,6 +56,7 @@ void Ekf::initialiseCovariance()
 
 	_delta_angle_bias_var_accum.setZero();
 	_delta_vel_bias_var_accum.setZero();
+	printf("w1\n");
 
 	// calculate average prediction time step in sec
 	float dt = FILTER_UPDATE_PERIOD_S;
@@ -501,12 +502,14 @@ void Ekf::predictCovariance()
 			const int index = i-13;
 			nextP[i][i] = kahanSummation(nextP[i][i], process_noise[i], _delta_vel_bias_var_accum(index));
 		}
+		printf("%e,%e,%e\n",(double)nextP[15][15],(double)process_noise[15],(double)_delta_vel_bias_var_accum(2));
 
 	} else {
 		// Inhibit delta velocity bias learning by zeroing the covariance terms
 		zeroRows(nextP, 13, 15);
 		zeroCols(nextP, 13, 15);
 		_delta_vel_bias_var_accum.setZero();
+		printf("w2\n");
 	}
 
 	// Don't do covariance prediction on magnetic field states unless we are using 3-axis fusion
