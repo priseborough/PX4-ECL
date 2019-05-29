@@ -748,9 +748,6 @@ void Ekf::controlHeightSensorTimeouts()
 			const gpsSample &gps_init = _gps_buffer.get_newest();
 			bool gps_hgt_accurate = (gps_init.vacc < _params.req_vacc);
 
-			const baroSample &baro_init = _baro_buffer.get_newest();
-			bool baro_hgt_available = ((_time_last_imu - baro_init.time_us) < 2 * BARO_MAX_INTERVAL);
-
 			// check for inertial sensing errors in the last 10 seconds
 			bool prev_bad_vert_accel = (_time_last_imu - _time_bad_vert_accel < BADACC_PROBATION);
 
@@ -758,10 +755,10 @@ void Ekf::controlHeightSensorTimeouts()
 			bool reset_to_gps = !_gps_hgt_intermittent && gps_hgt_accurate && !prev_bad_vert_accel;
 
 			// reset to GPS if GPS data is available and there is no Baro data
-			reset_to_gps = reset_to_gps || (!_gps_hgt_intermittent && !baro_hgt_available);
+			reset_to_gps = reset_to_gps || (!_gps_hgt_intermittent && _baro_hgt_intermittent);
 
 			// reset to Baro if we are not doing a GPS reset and baro data is available
-			bool reset_to_baro = !reset_to_gps && baro_hgt_available;
+			bool reset_to_baro = !reset_to_gps && !_baro_hgt_intermittent;
 
 			if (reset_to_gps) {
 				// set height sensor health
@@ -801,15 +798,14 @@ void Ekf::controlHeightSensorTimeouts()
 
 			// check the baro height source for consistency and freshness
 			const baroSample &baro_init = _baro_buffer.get_newest();
-			bool baro_data_fresh = ((_time_last_imu - baro_init.time_us) < 2 * BARO_MAX_INTERVAL);
 			float baro_innov = _state.pos(2) - (_hgt_sensor_offset - baro_init.hgt + _baro_hgt_offset);
 			bool baro_data_consistent = fabsf(baro_innov) < (sq(_params.baro_noise) + P[9][9]) * sq(_params.baro_innov_gate);
 
 			// if baro data is acceptable and GPS data is inaccurate, reset height to baro
-			bool reset_to_baro = baro_data_consistent && baro_data_fresh && !_baro_hgt_intermittent && !gps_hgt_accurate;
+			bool reset_to_baro = baro_data_consistent && !_baro_hgt_intermittent && !gps_hgt_accurate;
 
 			// if GPS height is unavailable and baro data is available, reset height to baro
-			reset_to_baro = reset_to_baro || (_gps_hgt_intermittent && baro_data_fresh);
+			reset_to_baro = reset_to_baro || (_gps_hgt_intermittent && !_baro_hgt_intermittent);
 
 			// if we cannot switch to baro and GPS data is available, reset height to GPS
 			bool reset_to_gps = !reset_to_baro && !_gps_hgt_intermittent;
@@ -846,12 +842,8 @@ void Ekf::controlHeightSensorTimeouts()
 			const rangeSample &rng_init = _range_buffer.get_newest();
 			bool rng_data_available = ((_time_last_imu - rng_init.time_us) < 2 * RNG_MAX_INTERVAL);
 
-			// check if baro data is available
-			const baroSample &baro_init = _baro_buffer.get_newest();
-			bool baro_data_available = ((_time_last_imu - baro_init.time_us) < 2 * BARO_MAX_INTERVAL);
-
 			// reset to baro if we have no range data and baro data is available
-			bool reset_to_baro = !rng_data_available && baro_data_available;
+			bool reset_to_baro = !rng_data_available && !_baro_hgt_intermittent;
 
 			// reset to range data if it is available
 			bool reset_to_rng = rng_data_available;
@@ -892,12 +884,8 @@ void Ekf::controlHeightSensorTimeouts()
 			const extVisionSample &ev_init = _ext_vision_buffer.get_newest();
 			bool ev_data_available = ((_time_last_imu - ev_init.time_us) < 2 * EV_MAX_INTERVAL);
 
-			// check if baro data is available
-			const baroSample &baro_init = _baro_buffer.get_newest();
-			bool baro_data_available = ((_time_last_imu - baro_init.time_us) < 2 * BARO_MAX_INTERVAL);
-
 			// reset to baro if we have no vision data and baro data is available
-			bool reset_to_baro = !ev_data_available && baro_data_available;
+			bool reset_to_baro = !ev_data_available && !_baro_hgt_intermittent;
 
 			// reset to ev data if it is available
 			bool reset_to_ev = ev_data_available;
