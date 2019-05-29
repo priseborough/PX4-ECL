@@ -407,6 +407,7 @@ private:
 	uint64_t _last_gps_fail_us{0};		///< last system time in usec that the GPS failed it's checks
 	uint64_t _last_gps_pass_us{0};		///< last system time in usec that the GPS passed it's checks
 	float _gps_error_norm{1.0f};		///< normalised gps error
+	bool _gps_checks_passed{false};		///> true when all active GPS checks have passed
 
 	// Variables used to publish the WGS-84 location of the EKF local NED origin
 	uint64_t _last_gps_origin_time_us{0};	///< time the origin was last set (uSec)
@@ -455,9 +456,9 @@ private:
 	float _dt_last_range_update_filt_us{0.0f};	///< filtered value of the delta time elapsed since the last range measurement came into the filter (uSec)
 	bool _hagl_valid{false};		///< true when the height above ground estimate is valid
 
-	// height sensor fault status
+	// height sensor status
 	bool _baro_hgt_faulty{false};		///< true if valid baro data is unavailable for use
-	bool _gps_hgt_faulty{false};		///< true if valid gps height data is unavailable for use
+	bool _gps_hgt_intermittent{false};	///< true if gps height into the buffer is intermittent
 	bool _rng_hgt_faulty{false};		///< true if valid range finder height data is unavailable for use
 	int _primary_hgt_source{VDIST_SENSOR_BARO};	///< specifies primary source of height data
 
