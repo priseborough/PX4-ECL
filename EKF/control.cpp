@@ -761,9 +761,6 @@ void Ekf::controlHeightSensorTimeouts()
 			bool reset_to_baro = !reset_to_gps && !_baro_hgt_intermittent;
 
 			if (reset_to_gps) {
-				// set height sensor health
-				_baro_hgt_intermittent = true;
-
 				// reset the height mode
 				setControlGPSHeight();
 
@@ -772,9 +769,6 @@ void Ekf::controlHeightSensorTimeouts()
 				ECL_WARN("EKF baro hgt timeout - reset to GPS");
 
 			} else if (reset_to_baro) {
-				// set height sensor health
-				_baro_hgt_intermittent = false;
-
 				// reset the height mode
 				setControlBaroHeight();
 
@@ -811,9 +805,6 @@ void Ekf::controlHeightSensorTimeouts()
 			bool reset_to_gps = !reset_to_baro && !_gps_hgt_intermittent;
 
 			if (reset_to_baro) {
-				// set height sensor health
-				_baro_hgt_intermittent = false;
-
 				// reset the height mode
 				setControlBaroHeight();
 
@@ -851,7 +842,6 @@ void Ekf::controlHeightSensorTimeouts()
 			if (reset_to_baro) {
 				// set height sensor health
 				_rng_hgt_faulty = true;
-				_baro_hgt_intermittent = false;
 
 				// reset the height mode
 				setControlBaroHeight();
@@ -891,9 +881,6 @@ void Ekf::controlHeightSensorTimeouts()
 			bool reset_to_ev = ev_data_available;
 
 			if (reset_to_baro) {
-				// set height sensor health
-				_baro_hgt_intermittent = false;
-
 				// reset the height mode
 				setControlBaroHeight();
 
