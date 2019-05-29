@@ -457,7 +457,7 @@ private:
 	bool _hagl_valid{false};		///< true when the height above ground estimate is valid
 
 	// height sensor status
-	bool _baro_hgt_faulty{false};		///< true if valid baro data is unavailable for use
+	bool _baro_hgt_intermittent{false};	///< true if baro height into the buffer is intermittent
 	bool _gps_hgt_intermittent{false};	///< true if gps height into the buffer is intermittent
 	bool _rng_hgt_faulty{false};		///< true if valid range finder height data is unavailable for use
 	int _primary_hgt_source{VDIST_SENSOR_BARO};	///< specifies primary source of height data

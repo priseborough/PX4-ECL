@@ -82,7 +82,7 @@ void Ekf::controlFusionModes()
 
 	// check for intermittent data (before pop_first_older_than)
 	const baroSample &baro_init = _baro_buffer.get_newest();
-	_baro_hgt_faulty = !((_time_last_imu - baro_init.time_us) < 2 * BARO_MAX_INTERVAL);
+	_baro_hgt_intermittent = !((_time_last_imu - baro_init.time_us) < 2 * BARO_MAX_INTERVAL);
 
 	const gpsSample &gps_init = _gps_buffer.get_newest();
 	_gps_hgt_intermittent = !((_time_last_imu - gps_init.time_us) < 2 * GPS_MAX_INTERVAL);
@@ -765,7 +765,7 @@ void Ekf::controlHeightSensorTimeouts()
 
 			if (reset_to_gps) {
 				// set height sensor health
-				_baro_hgt_faulty = true;
+				_baro_hgt_intermittent = true;
 
 				// reset the height mode
 				setControlGPSHeight();
@@ -776,7 +776,7 @@ void Ekf::controlHeightSensorTimeouts()
 
 			} else if (reset_to_baro) {
 				// set height sensor health
-				_baro_hgt_faulty = false;
+				_baro_hgt_intermittent = false;
 
 				// reset the height mode
 				setControlBaroHeight();
@@ -806,7 +806,7 @@ void Ekf::controlHeightSensorTimeouts()
 			bool baro_data_consistent = fabsf(baro_innov) < (sq(_params.baro_noise) + P[9][9]) * sq(_params.baro_innov_gate);
 
 			// if baro data is acceptable and GPS data is inaccurate, reset height to baro
-			bool reset_to_baro = baro_data_consistent && baro_data_fresh && !_baro_hgt_faulty && !gps_hgt_accurate;
+			bool reset_to_baro = baro_data_consistent && baro_data_fresh && !_baro_hgt_intermittent && !gps_hgt_accurate;
 
 			// if GPS height is unavailable and baro data is available, reset height to baro
 			reset_to_baro = reset_to_baro || (_gps_hgt_intermittent && baro_data_fresh);
@@ -816,7 +816,7 @@ void Ekf::controlHeightSensorTimeouts()
 
 			if (reset_to_baro) {
 				// set height sensor health
-				_baro_hgt_faulty = false;
+				_baro_hgt_intermittent = false;
 
 				// reset the height mode
 				setControlBaroHeight();
@@ -859,7 +859,7 @@ void Ekf::controlHeightSensorTimeouts()
 			if (reset_to_baro) {
 				// set height sensor health
 				_rng_hgt_faulty = true;
-				_baro_hgt_faulty = false;
+				_baro_hgt_intermittent = false;
 
 				// reset the height mode
 				setControlBaroHeight();
@@ -904,7 +904,7 @@ void Ekf::controlHeightSensorTimeouts()
 
 			if (reset_to_baro) {
 				// set height sensor health
-				_baro_hgt_faulty = false;
+				_baro_hgt_intermittent = false;
 
 				// reset the height mode
 				setControlBaroHeight();
@@ -964,7 +964,7 @@ void Ekf::controlHeightFusion()
 				}
 			}
 
-		} else if (!_range_aid_mode_selected && _baro_data_ready && !_baro_hgt_faulty) {
+		} else if (!_range_aid_mode_selected && _baro_data_ready && !_baro_hgt_intermittent) {
 			setControlBaroHeight();
 			_fuse_height = true;
 
@@ -1017,7 +1017,7 @@ void Ekf::controlHeightFusion()
 			}
 		}
 
-	} else if ((_params.vdist_sensor_type == VDIST_SENSOR_RANGE) && _baro_data_ready && !_baro_hgt_faulty) {
+	} else if ((_params.vdist_sensor_type == VDIST_SENSOR_RANGE) && _baro_data_ready && !_baro_hgt_intermittent) {
 		setControlBaroHeight();
 		_fuse_height = true;
 
@@ -1056,7 +1056,7 @@ void Ekf::controlHeightFusion()
 				_hgt_sensor_offset = _gps_sample_delayed.hgt - _gps_alt_ref + _state.pos(2);
 			}
 
-		} else if (_control_status.flags.baro_hgt && _baro_data_ready && !_baro_hgt_faulty) {
+		} else if (_control_status.flags.baro_hgt && _baro_data_ready && !_baro_hgt_intermittent) {
 			// switch to baro if there was a reset to baro
 			_fuse_height = true;
 
@@ -1070,7 +1070,7 @@ void Ekf::controlHeightFusion()
 
 	// Determine if we rely on EV height but switched to baro
 	if (_params.vdist_sensor_type == VDIST_SENSOR_EV) {
-		if (_control_status.flags.baro_hgt && _baro_data_ready && !_baro_hgt_faulty) {
+		if (_control_status.flags.baro_hgt && _baro_data_ready && !_baro_hgt_intermittent) {
 			// switch to baro if there was a reset to baro
 			_fuse_height = true;
 
