@@ -563,4 +563,7 @@ protected:
 	// calculate the inverse rotation matrix from a quaternion rotation
 	Matrix3f quat_to_invrotmat(const Quatf &quat);
 
+	// calculate the rotation matrix from a quaternion rotation
+	Matrix3f quat_to_rotmat(const Quatf &quat);
+
 };

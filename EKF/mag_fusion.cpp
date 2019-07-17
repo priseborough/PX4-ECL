@@ -425,6 +425,260 @@ void Ekf::fuseMag()
 	}
 }
 
+void Ekf::fuseMagCal()
+{
+	// This method can only be used if we are not using the magnetomer in the main EKF and have some movement
+	if (!_mag_use_inhibit || _vehicle_at_rest) {
+		// reset the covariance matrix
+		memset(_mag_cov_mat, 0, sizeof(_mag_cov_mat));
+		_mag_cov_mat[0][0] = 0.25f;
+		_mag_cov_mat[1][1] = 0.25f;
+		_mag_cov_mat[2][2] = 0.25f;
+		_mag_cov_mat[3][3] = 0.01f;
+		_mag_cov_mat[4][4] = 1.0f;
+
+		if (_mag_bias_ekf_time_us == 0) {
+			_mag_cal_states.mag_bias(0) = 0.0f;
+			_mag_cal_states.mag_bias(1) = 0.0f;
+			_mag_cal_states.mag_bias(2) = 0.0f;
+			_mag_cal_states.mag_scale = 1.0f;
+			_mag_cal_states.yaw_offset = 0.0f;
+			_mag_bias_ekf_time_us = _imu_sample_delayed.time_us;
+		}
+
+		return;
+
+	}
+
+	// predicted earth field vector
+	Vector3f mag_EF = getGeoMagNED();
+
+	// rotate the quaternions by the iniital yaw offset
+	Quatf quat_relative;
+	quat_relative(0) = cosf(_mag_cal_states.yaw_offset);
+	quat_relative(0) = 0.0f;
+	quat_relative(0) = 0.0f;
+	quat_relative(3) = sinf(_mag_cal_states.yaw_offset);
+	quat_relative = _state.quat_nominal * quat_relative;
+
+	// get equivalent rotation matrix
+	Matrix3f Teb = quat_to_invrotmat(quat_relative);
+
+	// rotate earth field into body frame and add bias states to get predicted measurement
+	Vector3f mag_obs_predicted = Teb * mag_EF + _mag_cal_states.mag_bias;
+
+	// XYZ Measurement noise.
+	float R_MAG = fmaxf(_params.mag_noise, 0.0f);
+	R_MAG = R_MAG * R_MAG;
+
+	// copy to variable names used by autocode
+	// TODO remove
+	float q0 = quat_relative(0);
+	float q1 = quat_relative(1);
+	float q2 = quat_relative(2);
+	float mn = mag_EF(0);
+	float me = mag_EF(1);
+	float md = mag_EF(2);
+	float m_scale = _mag_cal_states.mag_scale;
+
+	// intermediate variables from algebraic optimisation
+	float t2 = cosf(_mag_cal_states.yaw_offset);
+	float t3 = sinf(_mag_cal_states.yaw_offset);
+	float t4 = q0*t2;
+	float t8 = q1*t3;
+	float t5 = t4-t8;
+	float t6 = q1*t2;
+	float t9 = q2*t3;
+	float t7 = t6-t9;
+	float t10 = q0*q0;
+	float t11 = q0*t3;
+	float t12 = t6+t11;
+	float t13 = q2*t2;
+	float t14 = t8+t13;
+	float t15 = q0*t2*t12*2.0f;
+	float t16 = q0*t3*t5*2.0f;
+	float t17 = q0*t2*t5*2.0f;
+	float t18 = q0*t2*t7*2.0f;
+	float t19 = t2*t2;
+	float t20 = t5*t5;
+	float t21 = t7*t7;
+	float t22 = t5*t12*2.0f;
+	float t23 = t7*t14*2.0f;
+	float t24 = q0*t2*t14*2.0f;
+	float t25 = q0*t3*t7*2.0f;
+	float t26 = t17+t18;
+	float t27 = t10*t19*2.0f;
+	float t28 = t5*t7*2.0f;
+	float t29 = t20-t21;
+	float t30 = t7*t12*2.0f;
+	float t31 = t5*t14*2.0f;
+	float t32 = t2*t3*t10*4.0f;
+	float t33 = t22-t23;
+	float t34 = t15+t16+t24+t25;
+
+	// Observation jacobian and Kalman gain vectors
+	float H_MAG[5];
+	float Kfusion[5];
+	float innovation;
+
+	// update the states and covariance using sequential fusion of the magnetometer components
+	for (uint8_t index = 0; index <= 2; index++) {
+
+		// Calculate observation jacobians and innovation
+		if (index == 0) {
+			// Calculate X axis observation jacobians
+			memset(H_MAG, 0, sizeof(H_MAG));
+			H_MAG[0] = 1.0f;
+			H_MAG[1] = 0.0f;
+			H_MAG[2] = 0.0f;
+			H_MAG[3] = me*t26-md*(t17-q0*t2*t7*2.0f)-mn*(t20+t21-t10*t19*2.0f);
+			H_MAG[4] = m_scale*mn*(t22+t23-t2*t3*t10*4.0f)-m_scale*me*t34+m_scale*md*(t15+t16-q0*t3*t7*2.0f-q0*t2*t14*2.0f);
+
+			// calculate X axis innovation
+			innovation = mag_obs_predicted(0) - _mag_sample_delayed.mag(0);
+
+
+		} else if (index == 1) {
+			// Calculate Y axis observation jacobians
+			memset(H_MAG, 0, sizeof(H_MAG));
+			H_MAG[0] = 0.0f;
+			H_MAG[1] = 1.0f;
+			H_MAG[2] = 0.0f;
+			H_MAG[3] = md*(t27+t28)+me*t29+mn*(t17-t18);
+			H_MAG[4] = -m_scale*mn*(t15+t16-t24-t25)-m_scale*me*t33-m_scale*md*(t30+t31+t32);
+
+			// calculate Y axis innovation
+			innovation = mag_obs_predicted(1) - _mag_sample_delayed.mag(1);
+
+		} else if (index == 2) {
+			// calculate Z axis observation jacobians
+			memset(H_MAG, 0, sizeof(H_MAG));
+			H_MAG[0] = 0.0f;
+			H_MAG[1] = 0.0f;
+			H_MAG[2] = 1.0f;
+			H_MAG[3] = -md*t29+mn*t26-me*(t27-t28);
+			H_MAG[4] = -m_scale*me*(t30+t31-t32)+m_scale*md*t33-m_scale*mn*t34;
+
+			// calculate Z axis innovation
+			innovation = mag_obs_predicted(2) - _mag_sample_delayed.mag(2);
+
+		} else {
+			return;
+
+		}
+	// calculate the innovation variance
+	float PH[5];
+	float mag_innov_var = R_MAG;
+	for (unsigned row = 0; row < 5; row++) {
+		PH[row] = 0.0f;
+
+		for (uint8_t col = 0; col < 5; col++) {
+			PH[row] += _mag_cov_mat[row][col] * H_MAG[col];
+		}
+
+		mag_innov_var += H_MAG[row] * PH[row];
+	}
+
+	float mag_innov_var_inv;
+
+	// check if the innovation variance calculation is badly conditioned
+	if (mag_innov_var >= R_MAG) {
+		// the innovation variance contribution from the state covariances is not negative, no fault
+		mag_innov_var_inv = 1.0f / mag_innov_var;
+
+	} else {
+		// we reinitialise the covariance matrix and abort this fusion step
+		memset(_mag_cov_mat, 0, sizeof(_mag_cov_mat));
+		_mag_cov_mat[0][0] = 0.25f;
+		_mag_cov_mat[1][1] = 0.25f;
+		_mag_cov_mat[2][2] = 0.25f;
+		_mag_cov_mat[3][3] = 0.01f;
+		_mag_cov_mat[4][4] = 1.0f;
+
+		ECL_ERR("EKF mag bias cal fusion numerical error - covariance reset");
+
+		return;
+
+	}
+
+		// calculate the Kalman gains
+		for (uint8_t row = 0; row < 5; row++) {
+			Kfusion[row] = 0.0f;
+
+			for (uint8_t col = 0; col < 5; col++) {
+				Kfusion[row] += _mag_cov_mat[row][col] * H_MAG[col];
+			}
+
+			Kfusion[row] *= mag_innov_var_inv;
+
+		}
+
+		// apply covariance correction via P_new = (I -K*H)*P
+		// first calculate expression for KHP
+		// then calculate P - KHP
+		float KHP[5][5];
+		float KH[5];
+
+		for (unsigned row = 0; row < 5; row++) {
+
+			KH[0] = Kfusion[row] * H_MAG[0];
+			KH[1] = Kfusion[row] * H_MAG[1];
+			KH[2] = Kfusion[row] * H_MAG[2];
+			KH[3] = Kfusion[row] * H_MAG[3];
+			KH[4] = Kfusion[row] * H_MAG[4];
+
+			for (unsigned col = 0; col < 5; col++) {
+				float tmp = KH[0] * _mag_cov_mat[0][col];
+				tmp += KH[1] * _mag_cov_mat[1][col];
+				tmp += KH[2] * _mag_cov_mat[2][col];
+				tmp += KH[3] * _mag_cov_mat[3][col];
+				tmp += KH[4] * _mag_cov_mat[4][col];
+				KHP[row][col] = tmp;
+			}
+		}
+
+		// apply the covariance corrections
+		for (unsigned row = 0; row < 5; row++) {
+			for (unsigned col = 0; col < 5; col++) {
+				_mag_cov_mat[row][col] = _mag_cov_mat[row][col] - KHP[row][col];
+			}
+		}
+
+		// correct the covariance matrix for gross errors
+		// force symmetry
+		for (unsigned row = 0; row < 5; row++) {
+			for (unsigned col = 0; col < row; col++) {
+				float tmp = (_mag_cov_mat[row][col] + _mag_cov_mat[col][row]) / 2;
+				_mag_cov_mat[row][col] = tmp;
+				_mag_cov_mat[col][row] = tmp;
+			}
+		}
+		// force positive variances
+		for (unsigned col = 0; col < 5; col++) {
+			_mag_cov_mat[col][col] = fmaxf(_mag_cov_mat[col][col], 1e-12f);
+		}
+
+		// apply the state corrections
+		const float innov_limit = 0.5f;
+		innovation = math::constrain(innovation, -innov_limit, innov_limit);
+		_mag_cal_states.mag_bias(0) -= Kfusion[0] * innovation;
+		_mag_cal_states.mag_bias(1) -= Kfusion[1] * innovation;
+		_mag_cal_states.mag_bias(2) -= Kfusion[2] * innovation;
+		_mag_cal_states.mag_scale -= Kfusion[3] * innovation;
+		_mag_cal_states.yaw_offset -= Kfusion[4] * innovation;
+
+		// Constrain state estimates
+		const float bias_limit = 0.5f;
+		_mag_cal_states.mag_bias(0) = math::constrain(_mag_cal_states.mag_bias(0), -bias_limit, bias_limit);
+		_mag_cal_states.mag_bias(1) = math::constrain(_mag_cal_states.mag_bias(1), -bias_limit, bias_limit);
+		_mag_cal_states.mag_bias(2) = math::constrain(_mag_cal_states.mag_bias(2), -bias_limit, bias_limit);
+		_mag_cal_states.mag_scale = math::constrain(_mag_cal_states.mag_scale, 0.5f, 2.0f);
+		_mag_cal_states.yaw_offset = math::constrain(_mag_cal_states.yaw_offset, -math::radians(180.0f), math::radians(180.0f));
+	}
+
+	_mag_bias_ekf_time_us = _imu_sample_delayed.time_us;
+}
+
 void Ekf::fuseHeading()
 {
 	// assign intermediate state variables

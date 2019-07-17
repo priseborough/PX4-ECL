@@ -268,7 +268,9 @@ struct parameters {
 	// magnetometer fusion
 	float mag_heading_noise{3.0e-1f};	///< measurement noise used for simple heading fusion (rad)
 	float mag_noise{5.0e-2f};		///< measurement noise used for 3-axis magnetoemeter fusion (Gauss)
-	float mag_declination_deg{0.0f};	///< magnetic declination (degrees)
+	float mag_declination_deg{11.6f};	///< magnetic declination (degrees)
+	float mag_inclination_deg{68.7f};	///< magnetic inclination (degrees)
+	float mag_strength_gauss{0.6f};		///< magnetic field strength (Gauss)
 	float heading_innov_gate{2.6f};		///< heading fusion innovation consistency gate size (STD)
 	float mag_innov_gate{3.0f};		///< magnetometer fusion innovation consistency gate size (STD)
 	int32_t mag_declination_source{7};	///< bitmask used to control the handling of declination data

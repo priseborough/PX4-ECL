@@ -286,7 +286,17 @@ private:
 
 	stateSample _state{};		///< state struct of the ekf running at the delayed time horizon
 
-	bool _filter_initialised{false};	///< true when the EKF sttes and covariances been initialised
+	// Variables used by a small 5 state EKF that is able to estimate sensor biases from a single axis rotation
+	struct {
+		Vector3f mag_bias;
+		float mag_scale;
+		float yaw_offset;
+	} _mag_cal_states{};		///< states used by mag bias EKF
+	float _mag_cov_mat[5][5] = {};	///< covariance matrix used by mag bias EKF
+	bool _mag_bias_ekf_active = false;	///< true when the mag bias EKF is active
+	uint64_t _mag_bias_ekf_time_us{0};	///< last time a mag sample was fused (uSec)
+
+	bool _filter_initialised{false};	///< true when the EKF states and covariances been initialised
 	bool _earth_rate_initialised{false};	///< true when we know the earth rotatin rate (requires GPS)
 
 	bool _fuse_height{false};	///< true when baro height data should be fused
@@ -506,6 +516,10 @@ private:
 	// ekf sequential fusion of magnetometer measurements
 	void fuseMag();
 
+	// sequential fusion of magnetometer measurements for estimation of bias offsets
+	// using known earth field and a 360 deg yaw rotation for quick pre-flight calibration
+	void fuseMagCal();
+
 	// fuse the first euler angle from either a 321 or 312 rotation sequence as the observation (currently measures yaw using the magnetometer)
 	void fuseHeading();
 
@@ -568,6 +582,9 @@ private:
 
 	// Return the magnetic declination in radians to be used by the alignment and fusion processing
 	float getMagDeclination();
+
+	// Return the magnetic field in Gauss to be used by the alignment and fusion processing
+	Vector3f getGeoMagNED();
 
 	// reset position states of the ekf (only horizontal position)
 	bool resetPosition();

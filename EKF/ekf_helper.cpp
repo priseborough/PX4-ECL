@@ -797,6 +797,22 @@ float Ekf::getMagDeclination()
 	}
 }
 
+// Return the magnetic field in Gauss to be used by  alignment and fusion processing
+Vector3f Ekf::getGeoMagNED()
+{
+	// use parameter value until GPS is available, then use value returned by geo library
+	if (_NED_origin_initialised) {
+		// predicted earth field vector
+		float mag_h = _mag_strength_gps * cosf(_mag_inclination_gps);
+		Vector3f mag_EF{cosf(_mag_declination_gps) * mag_h, sinf(_mag_declination_gps) * mag_h, _mag_strength_gps * sinf(_mag_inclination_gps) };
+		return mag_EF;
+
+	} else {
+		float mag_h = _params.mag_strength_gauss * cosf(math::radians(_params.mag_inclination_deg));
+		Vector3f mag_EF{cosf(math::radians(_params.mag_declination_deg)) * mag_h, sinf(math::radians(_params.mag_declination_deg)) * mag_h, _params.mag_strength_gauss * sinf(math::radians(_params.mag_inclination_deg))};
+		return mag_EF;
+	}
+}
 // This function forces the covariance matrix to be symmetric
 void Ekf::makeSymmetrical(float (&cov_mat)[_k_num_states][_k_num_states], uint8_t first, uint8_t last)
 {
@@ -1405,6 +1421,34 @@ Matrix3f EstimatorInterface::quat_to_invrotmat(const Quatf &quat)
 	dcm(1, 2) = 2.0f * (q23 - q01);
 	dcm(2, 0) = 2.0f * (q13 - q02);
 	dcm(2, 1) = 2.0f * (q23 + q01);
+
+	return dcm;
+}
+
+// calculate the rotation matrix from a quaternion rotation
+Matrix3f EstimatorInterface::quat_to_rotmat(const Quatf &quat)
+{
+	float q00 = quat(0) * quat(0);
+	float q11 = quat(1) * quat(1);
+	float q22 = quat(2) * quat(2);
+	float q33 = quat(3) * quat(3);
+	float q01 = quat(0) * quat(1);
+	float q02 = quat(0) * quat(2);
+	float q03 = quat(0) * quat(3);
+	float q12 = quat(1) * quat(2);
+	float q13 = quat(1) * quat(3);
+	float q23 = quat(2) * quat(3);
+
+	Matrix3f dcm;
+	dcm(0, 0) = q00 + q11 - q22 - q33;
+	dcm(1, 1) = q00 - q11 + q22 - q33;
+	dcm(2, 2) = q00 - q11 - q22 + q33;
+	dcm(1, 0) = 2.0f * (q12 - q03);
+	dcm(2, 0) = 2.0f * (q13 + q02);
+	dcm(0, 1) = 2.0f * (q12 + q03);
+	dcm(2, 1) = 2.0f * (q23 - q01);
+	dcm(0, 2) = 2.0f * (q13 - q02);
+	dcm(1, 2) = 2.0f * (q23 + q01);
 
 	return dcm;
 }
