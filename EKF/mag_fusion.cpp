@@ -43,6 +43,9 @@
 #include "ekf.h"
 #include <ecl.h>
 #include <mathlib/mathlib.h>
+#include <systemlib/mavlink_log.h>
+
+orb_advert_t _mavlink_log_pub;
 
 void Ekf::fuseMag()
 {
@@ -682,6 +685,13 @@ void Ekf::fuseMagCal()
 	}
 
 	_mag_bias_ekf_time_us = _imu_sample_delayed.time_us;
+
+	// debug code
+	static uint64_t print_time_us = 0;
+	if (_imu_sample_delayed.time_us - print_time_us > 1000000) {
+		mavlink_and_console_log_info(&_mavlink_log_pub, "bias = %5.3f, %5.3f, %5.3f\n", (double)_mag_cal_states.mag_bias(0), (double)_mag_cal_states.mag_bias(1), (double)_mag_cal_states.mag_bias(2));
+		print_time_us = _imu_sample_delayed.time_us;
+	}
 }
 
 void Ekf::fuseHeading()
