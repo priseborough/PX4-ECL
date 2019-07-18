@@ -427,6 +427,11 @@ void Ekf::fuseMag()
 
 void Ekf::fuseMagCal()
 {
+	// limit to run at 2Hz
+	if (_imu_sample_delayed.time_us - _mag_bias_ekf_time_us < 500000) {
+		return;
+	}
+
 	// This method can only be used if we are not using the magnetomer in the main EKF and have some movement
 	if (!_mag_use_inhibit || _vehicle_at_rest) {
 		// reset the covariance matrix
