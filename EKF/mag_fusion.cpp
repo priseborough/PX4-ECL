@@ -464,8 +464,8 @@ void Ekf::fuseMagCal()
 	// rotate the quaternions by the iniital yaw offset
 	Quatf quat_relative;
 	quat_relative(0) = cosf(_mag_cal_states.yaw_offset);
-	quat_relative(0) = 0.0f;
-	quat_relative(0) = 0.0f;
+	quat_relative(1) = 0.0f;
+	quat_relative(2) = 0.0f;
 	quat_relative(3) = sinf(_mag_cal_states.yaw_offset);
 	quat_relative = _state.quat_nominal * quat_relative;
 

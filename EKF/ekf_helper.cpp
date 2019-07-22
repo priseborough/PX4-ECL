@@ -809,7 +809,7 @@ Vector3f Ekf::getGeoMagNED()
 
 	} else {
 		float mag_h = _params.mag_strength_gauss * cosf(math::radians(_params.mag_inclination_deg));
-		Vector3f mag_EF{cosf(math::radians(_params.mag_declination_deg)) * mag_h, sinf(math::radians(_params.mag_declination_deg)) * mag_h, _params.mag_strength_gauss * sinf(math::radians(_params.mag_inclination_deg))};
+		Vector3f mag_EF{-cosf(math::radians(_params.mag_declination_deg)) * mag_h, -sinf(math::radians(_params.mag_declination_deg)) * mag_h, -_params.mag_strength_gauss * sinf(math::radians(_params.mag_inclination_deg))};
 		return mag_EF;
 	}
 }
