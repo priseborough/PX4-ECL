@@ -286,10 +286,9 @@ private:
 
 	stateSample _state{};		///< state struct of the ekf running at the delayed time horizon
 
-	// Variables used by a small 5 state EKF that is able to estimate sensor biases from a single axis rotation
+	// Variables used by a small 4 state EKF that is able to estimate sensor biases from a single axis rotation
 	struct {
 		Vector3f mag_bias;
-		float mag_scale;
 		float yaw_offset;
 	} _mag_cal_states{};		///< states used by mag bias EKF
 	float _mag_cov_mat[5][5] = {};	///< covariance matrix used by mag bias EKF
