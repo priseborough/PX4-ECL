@@ -430,27 +430,36 @@ void Ekf::fuseMag()
 
 void Ekf::fuseMagCal()
 {
-	// limit to run at 2Hz
-	if (_imu_sample_delayed.time_us - _mag_bias_ekf_time_us < 500000) {
+	// don't run if main filter is using the magnetomer
+	if (!_mag_use_inhibit) {
 		return;
 	}
 
-	// This method can only be used if we are not using the magnetomer in the main EKF and have some movement
-	if (!_mag_use_inhibit || _vehicle_at_rest) {
-		// reset the covariance matrix
+	// limit to run once per 10 degrees of yaw rotation
+	Eulerf euler321(_state.quat_nominal);
+	float yaw_delta = euler321(2) - _mag_bias_ekf_yaw_last;
+	if (yaw_delta > M_PI_F) {
+		yaw_delta -= M_TWOPI_F;
+	} else if (yaw_delta < -M_PI_F) {
+		yaw_delta += M_TWOPI_F;
+	}
+	_mag_bias_ekf_yaw_last = euler321(2);
+	if (fabsf(yaw_delta) > math::radians(10.0f)) {
+		return;
+	}
+
+	// reset the covariance matrix and states first time of if data hasn't beenn fused in the last 10 seconds
+	if (_mag_bias_ekf_time_us == 0 || (_imu_sample_delayed.time_us - _mag_bias_ekf_time_us) > 10E6) {
 		memset(_mag_cov_mat, 0, sizeof(_mag_cov_mat));
 		_mag_cov_mat[0][0] = 0.25f;
 		_mag_cov_mat[1][1] = 0.25f;
 		_mag_cov_mat[2][2] = 0.25f;
 		_mag_cov_mat[3][3] = 1.0f;
-
-		if (_mag_bias_ekf_time_us == 0) {
-			_mag_cal_states.mag_bias(0) = 0.0f;
-			_mag_cal_states.mag_bias(1) = 0.0f;
-			_mag_cal_states.mag_bias(2) = 0.0f;
-			_mag_cal_states.yaw_offset = 0.0f;
-			_mag_bias_ekf_time_us = _imu_sample_delayed.time_us;
-		}
+		_mag_cal_states.mag_bias(0) = 0.0f;
+		_mag_cal_states.mag_bias(1) = 0.0f;
+		_mag_cal_states.mag_bias(2) = 0.0f;
+		_mag_cal_states.yaw_offset = 0.0f;
+		_mag_bias_ekf_time_us = _imu_sample_delayed.time_us;
 
 		return;
 
@@ -514,7 +523,7 @@ void Ekf::fuseMagCal()
 	// Observation jacobian and Kalman gain vectors
 	float H_MAG[4];
 	float Kfusion[4];
-	float innovation;
+	float innovation[3];
 
 	// update the states and covariance using sequential fusion of the magnetometer components
 	for (uint8_t index = 0; index <= 2; index++) {
@@ -528,10 +537,6 @@ void Ekf::fuseMagCal()
 			H_MAG[2] = 0.0f;
 			H_MAG[3] = -md*(t12+t14+t16-q0*t2*t6*2.0f)-me*t24+mn*(t18+t6*(t10-q1*t3)*2.0f-t2*t3*t17*4.0f);
 
-			// calculate X axis innovation
-			innovation = mag_obs_predicted(0) - _mag_sample_delayed.mag(0);
-
-
 		} else if (index == 1) {
 			// Calculate Y axis observation jacobians
 			memset(H_MAG, 0, sizeof(H_MAG));
@@ -539,9 +544,6 @@ void Ekf::fuseMagCal()
 			H_MAG[1] = 1.0f;
 			H_MAG[2] = 0.0f;
 			H_MAG[3] = me*t23-md*(t20+t21-t9*t13*2.0f)+mn*(t12+t14+t16-t19);
-
-			// calculate Y axis innovation
-			innovation = mag_obs_predicted(1) - _mag_sample_delayed.mag(1);
 
 		} else if (index == 2) {
 			// calculate Z axis observation jacobians
@@ -551,46 +553,42 @@ void Ekf::fuseMagCal()
 			H_MAG[2] = 1.0f;
 			H_MAG[3] = -md*t23-mn*t24+me*(-t20+t21+t9*t13*2.0f);
 
-			// calculate Z axis innovation
-			innovation = mag_obs_predicted(2) - _mag_sample_delayed.mag(2);
+		}
+		innovation[index] = mag_obs_predicted(2) - _mag_sample_delayed.mag(2);
+
+		// calculate the innovation variance
+		float PH[4];
+		float mag_innov_var = R_MAG;
+		for (unsigned row = 0; row < 4; row++) {
+			PH[row] = 0.0f;
+
+			for (uint8_t col = 0; col < 4; col++) {
+				PH[row] += _mag_cov_mat[row][col] * H_MAG[col];
+			}
+
+			mag_innov_var += H_MAG[row] * PH[row];
+		}
+
+		float mag_innov_var_inv;
+
+		// check if the innovation variance calculation is badly conditioned
+		if (mag_innov_var >= R_MAG) {
+			// the innovation variance contribution from the state covariances is not negative, no fault
+			mag_innov_var_inv = 1.0f / mag_innov_var;
 
 		} else {
+			// we reinitialise the covariance matrix and abort this fusion step
+			memset(_mag_cov_mat, 0, sizeof(_mag_cov_mat));
+			_mag_cov_mat[0][0] = 0.25f;
+			_mag_cov_mat[1][1] = 0.25f;
+			_mag_cov_mat[2][2] = 0.25f;
+			_mag_cov_mat[3][3] = 1.0f;
+
+			ECL_ERR("EKF mag bias cal fusion numerical error - covariance reset");
+
 			return;
 
 		}
-	// calculate the innovation variance
-	float PH[4];
-	float mag_innov_var = R_MAG;
-	for (unsigned row = 0; row < 4; row++) {
-		PH[row] = 0.0f;
-
-		for (uint8_t col = 0; col < 4; col++) {
-			PH[row] += _mag_cov_mat[row][col] * H_MAG[col];
-		}
-
-		mag_innov_var += H_MAG[row] * PH[row];
-	}
-
-	float mag_innov_var_inv;
-
-	// check if the innovation variance calculation is badly conditioned
-	if (mag_innov_var >= R_MAG) {
-		// the innovation variance contribution from the state covariances is not negative, no fault
-		mag_innov_var_inv = 1.0f / mag_innov_var;
-
-	} else {
-		// we reinitialise the covariance matrix and abort this fusion step
-		memset(_mag_cov_mat, 0, sizeof(_mag_cov_mat));
-		_mag_cov_mat[0][0] = 0.25f;
-		_mag_cov_mat[1][1] = 0.25f;
-		_mag_cov_mat[2][2] = 0.25f;
-		_mag_cov_mat[3][3] = 1.0f;
-
-		ECL_ERR("EKF mag bias cal fusion numerical error - covariance reset");
-
-		return;
-
-	}
 
 		// calculate the Kalman gains
 		for (uint8_t row = 0; row < 4; row++) {
@@ -649,11 +647,11 @@ void Ekf::fuseMagCal()
 
 		// apply the state corrections
 		const float innov_limit = 0.5f;
-		innovation = math::constrain(innovation, -innov_limit, innov_limit);
-		_mag_cal_states.mag_bias(0) -= Kfusion[0] * innovation;
-		_mag_cal_states.mag_bias(1) -= Kfusion[1] * innovation;
-		_mag_cal_states.mag_bias(2) -= Kfusion[2] * innovation;
-		_mag_cal_states.yaw_offset -= Kfusion[3] * innovation;
+		innovation[index] = math::constrain(innovation[index], -innov_limit, innov_limit);
+		_mag_cal_states.mag_bias(0) -= Kfusion[0] * innovation[index];
+		_mag_cal_states.mag_bias(1) -= Kfusion[1] * innovation[index];
+		_mag_cal_states.mag_bias(2) -= Kfusion[2] * innovation[index];
+		_mag_cal_states.yaw_offset -= Kfusion[3] * innovation[index];
 
 		// Constrain state estimates
 		const float bias_limit = 0.5f;
@@ -665,13 +663,21 @@ void Ekf::fuseMagCal()
 
 	_mag_bias_ekf_time_us = _imu_sample_delayed.time_us;
 
+/*
+	// replay debug code
+	printf("states = %5.3f,%5.3f,%5.3f , %5.3f,\n",
+	(double)_mag_cal_states.mag_bias(0), (double)_mag_cal_states.mag_bias(1), (double)_mag_cal_states.mag_bias(2),
+	(double)_mag_cal_states.yaw_offset);
+	printf("innov = %5.3f,%5.3f,%5.3f\n\n",(double)innovation[0],(double)innovation[1],(double)innovation[2]);
+*/
+
+/*
 	// debug code
 	static uint64_t print_time_us = 0;
 	if (_imu_sample_delayed.time_us - print_time_us > 1000000) {
-		mavlink_and_console_log_info(&_mavlink_log_pub, "states = %5.3f,%5.3f, %5.3f, %5.3f,\n",
+		mavlink_and_console_log_info(&_mavlink_log_pub, "states = %5.3f,%5.3f,%5.3f , %5.3f,\n",
 		(double)_mag_cal_states.mag_bias(0), (double)_mag_cal_states.mag_bias(1), (double)_mag_cal_states.mag_bias(2),
 		(double)_mag_cal_states.yaw_offset);
-		print_time_us = _imu_sample_delayed.time_us;
 		mag_obs_predicted = Teb * mag_EF;
 		mavlink_and_console_log_info(&_mavlink_log_pub, "magEF,BF = %5.3f,%5.3f,%5.3f, %5.3f,%5.3f,%5.3f\n",
 		(double)mag_EF(0), (double)mag_EF(1), (double)mag_EF(2),
@@ -679,6 +685,7 @@ void Ekf::fuseMagCal()
 		print_time_us = _imu_sample_delayed.time_us;
 
 	}
+*/
 }
 
 void Ekf::fuseHeading()

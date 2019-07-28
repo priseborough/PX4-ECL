@@ -294,6 +294,7 @@ private:
 	float _mag_cov_mat[5][5] = {};	///< covariance matrix used by mag bias EKF
 	bool _mag_bias_ekf_active = false;	///< true when the mag bias EKF is active
 	uint64_t _mag_bias_ekf_time_us{0};	///< last time a mag sample was fused (uSec)
+	float _mag_bias_ekf_yaw_last{0.0f};	///< yaw angle when data last used (rad)
 
 	bool _filter_initialised{false};	///< true when the EKF states and covariances been initialised
 	bool _earth_rate_initialised{false};	///< true when we know the earth rotatin rate (requires GPS)
