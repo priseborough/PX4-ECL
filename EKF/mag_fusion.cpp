@@ -430,8 +430,8 @@ void Ekf::fuseMag()
 
 void Ekf::fuseMagCal()
 {
-	// don't run if main filter is using the magnetomer
-	if (!_mag_use_inhibit) {
+	// don't run if main filter is using the magnetomer or if excessively tilted
+	if (!_mag_use_inhibit || _R_to_earth(2,2) < cosf(math::radians(45.0f))) {
 		return;
 	}
 
@@ -443,13 +443,14 @@ void Ekf::fuseMagCal()
 	} else if (yaw_delta < -M_PI_F) {
 		yaw_delta += M_TWOPI_F;
 	}
-	_mag_bias_ekf_yaw_last = euler321(2);
-	if (fabsf(yaw_delta) > math::radians(10.0f)) {
+	if (fabsf(yaw_delta) < math::radians(10.0f)) {
 		return;
 	}
+	_mag_bias_ekf_yaw_last = euler321(2);
 
-	// reset the covariance matrix and states first time of if data hasn't beenn fused in the last 10 seconds
-	if (_mag_bias_ekf_time_us == 0 || (_imu_sample_delayed.time_us - _mag_bias_ekf_time_us) > 10E6) {
+	// reset the covariance matrix and states first time of if data hasn't beenn fused in the last 20 seconds
+	float time_delta_sec =  1E-6f * (float)(_imu_sample_delayed.time_us - _mag_bias_ekf_time_us);
+	if (_mag_bias_ekf_time_us == 0 || time_delta_sec > 20 ) {
 		memset(_mag_cov_mat, 0, sizeof(_mag_cov_mat));
 		_mag_cov_mat[0][0] = 0.25f;
 		_mag_cov_mat[1][1] = 0.25f;
@@ -464,6 +465,11 @@ void Ekf::fuseMagCal()
 		return;
 
 	}
+
+	// Apply process noise of 0.5 deg/sec to yaw state variance
+	float yaw_process_noise_variance = time_delta_sec * math::radians(0.5f);
+	yaw_process_noise_variance *= yaw_process_noise_variance;
+	_mag_cov_mat[3][3] += yaw_process_noise_variance;
 
 	// predicted earth field vector
 	Vector3f mag_EF = getGeoMagNED();
