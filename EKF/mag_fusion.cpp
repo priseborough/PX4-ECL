@@ -430,8 +430,32 @@ void Ekf::fuseMag()
 
 void Ekf::fuseMagCal()
 {
-	// don't run if main filter is using the magnetomer or if excessively tilted
-	if (!_mag_use_inhibit || _R_to_earth(2,2) < cosf(math::radians(45.0f))) {
+	// apply imu bias corrections to sensor data
+	Vector3f corrected_delta_ang = _imu_sample_delayed.delta_ang - _state.gyro_bias;
+
+	// check if yaw rate and tilt is sufficient to perform calibration
+	if (_imu_sample_delayed.delta_ang_dt > 0.0001f) {
+		float yaw_rate = _R_to_earth(2,0) * corrected_delta_ang(0)
+				+ _R_to_earth(2,1) * corrected_delta_ang(1)
+				+ _R_to_earth(2,2) * corrected_delta_ang(2);
+		yaw_rate = yaw_rate / _imu_sample_delayed.delta_ang_dt;
+
+		bool tilt_ok = _R_to_earth(2,2) > cosf(math::radians(45.0f));
+
+		if (!_mag_bias_ekf_active && fabsf(yaw_rate) > math::radians(10.0f) && tilt_ok) {
+			_mag_bias_ekf_active = true;
+		} else if (_mag_bias_ekf_active && (fabsf(yaw_rate) < math::radians(5.0f) || !tilt_ok)) {
+			_mag_bias_ekf_active = false;
+		}
+
+	} else {
+		// invalid dt so can't proceed
+		return;
+
+	}
+
+	// don't run if main filter is using the magnetomer or if excessively tilted of if not rotating quickly enough
+	if (!_mag_use_inhibit || !_mag_bias_ekf_active) {
 		return;
 	}
 
@@ -448,7 +472,7 @@ void Ekf::fuseMagCal()
 	}
 	_mag_bias_ekf_yaw_last = euler321(2);
 
-	// reset the covariance matrix and states first time of if data hasn't beenn fused in the last 20 seconds
+	// reset the covariance matrix and states first time of if data hasn't been fused in the last 20 seconds
 	float time_delta_sec =  1E-6f * (float)(_imu_sample_delayed.time_us - _mag_bias_ekf_time_us);
 	if (_mag_bias_ekf_time_us == 0 || time_delta_sec > 20 ) {
 		memset(_mag_cov_mat, 0, sizeof(_mag_cov_mat));
