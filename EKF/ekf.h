@@ -734,5 +734,15 @@ private:
 	bool _mag_bias_ekf_active = false;	///< true when the mag bias EKF is active
 	uint64_t _mag_bias_ekf_time_us{0};	///< last time a mag sample was fused (uSec)
 	float _mag_bias_ekf_yaw_last{0.0f};	///< yaw angle when data last used (rad)
+	struct mag_cal_obs {
+		Vector3f mag_data;
+		Quatf quaternion;
+		float time_step;
+	};
+	mag_cal_obs _mag_cal_fit_data[36];
+	uint8_t _mag_sample_index{0};
+	uint8_t _mag_cal_interation_index{0};
+	float _mag_cal_residual[3];
+	bool _mag_cal_complete{false};
 
 };
