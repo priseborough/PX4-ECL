@@ -48,11 +48,11 @@ orb_advert_t _mavlink_log_pub;
 
 void Ekf::fuseMagCal()
 {
-	// apply imu bias corrections to sensor data
-	Vector3f corrected_delta_ang = _imu_sample_delayed.delta_ang - _state.gyro_bias;
-
 	// check if yaw rate and tilt is sufficient to perform calibration
 	if (_imu_sample_delayed.delta_ang_dt > 0.0001f) {
+	// apply imu bias corrections to sensor data
+		Vector3f corrected_delta_ang = _imu_sample_delayed.delta_ang - _state.gyro_bias;
+
 		float yaw_rate = _R_to_earth(2,0) * corrected_delta_ang(0)
 				+ _R_to_earth(2,1) * corrected_delta_ang(1)
 				+ _R_to_earth(2,2) * corrected_delta_ang(2);
@@ -89,6 +89,7 @@ void Ekf::fuseMagCal()
 		return;
 	}
 	_mag_bias_ekf_yaw_last = euler321(2);
+	printf("yaw = %5.1f , %6.3f\n",(double)_mag_bias_ekf_yaw_last, (double)(_imu_sample_delayed.delta_ang(2)/_imu_sample_delayed.delta_ang_dt));
 
 	// reset the covariance matrix and states first time of if data hasn't been fused in the last 20 seconds
 	float time_delta_sec =  1E-6f * (float)(_imu_sample_delayed.time_us - _mag_bias_ekf_time_us);
@@ -122,10 +123,10 @@ void Ekf::fuseMagCal()
 	quat_relative(1) = 0.0f;
 	quat_relative(2) = 0.0f;
 	quat_relative(3) = sinf(_mag_cal_states.yaw_offset);
-	quat_relative = _state.quat_nominal * quat_relative;
+	quat_relative =  quat_relative * _state.quat_nominal;
 
 	// get equivalent rotation matrix
-	Matrix3f Teb = quat_to_invrotmat(quat_relative);
+	Matrix3f Teb = matrix::Dcmf(quat_relative).transpose();
 
 	// rotate earth field into body frame and add bias states to get predicted measurement
 	Vector3f mag_obs_predicted = Teb * mag_EF + _mag_cal_states.mag_bias;
@@ -316,6 +317,11 @@ void Ekf::fuseMagCal()
 	(double)_mag_cal_states.mag_bias(0), (double)_mag_cal_states.mag_bias(1), (double)_mag_cal_states.mag_bias(2),
 	(double)_mag_cal_states.yaw_offset);
 	printf("innov = %5.3f,%5.3f,%5.3f\n\n",(double)innovation[0],(double)innovation[1],(double)innovation[2]);
+	Teb = matrix::Dcmf(_state.quat_nominal).transpose();
+	mag_obs_predicted = Teb * mag_EF;
+	printf("EF = %5.3f,%5.3f,%5.3f\n",(double)mag_EF(0),(double)mag_EF(1),(double)mag_EF(2));
+	printf("pred = %5.3f,%5.3f,%5.3f\n",(double)mag_obs_predicted(0),(double)mag_obs_predicted(1),(double)mag_obs_predicted(2));
+	printf("meas = %5.3f,%5.3f,%5.3f\n\n",(double)_mag_sample_delayed.mag(0),(double)_mag_sample_delayed.mag(1),(double)_mag_sample_delayed.mag(2));
 
 /*
 	// debug code
@@ -332,4 +338,21 @@ void Ekf::fuseMagCal()
 
 	}
 */
+}
+
+// Return the magnetic field in Gauss to be used by  alignment and fusion processing
+Vector3f Ekf::getGeoMagNED()
+{
+	// use parameter value until GPS is available, then use value returned by geo library
+	if (_NED_origin_initialised) {
+		// predicted earth field vector
+		float mag_h = _mag_strength_gps * cosf(-_mag_inclination_gps);
+		Vector3f mag_EF{cosf(_mag_declination_gps) * mag_h, sinf(_mag_declination_gps) * mag_h, _mag_strength_gps * sinf(-_mag_inclination_gps) };
+		return mag_EF;
+
+	} else {
+		float mag_h = _params.mag_strength_gauss * cosf(math::radians(-_params.mag_inclination_deg));
+		Vector3f mag_EF{cosf(math::radians(_params.mag_declination_deg)) * mag_h, sinf(math::radians(_params.mag_declination_deg)) * mag_h, _params.mag_strength_gauss * sinf(math::radians(-_params.mag_inclination_deg))};
+		return mag_EF;
+	}
 }

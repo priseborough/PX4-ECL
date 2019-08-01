@@ -569,9 +569,6 @@ private:
 	// Return the magnetic declination in radians to be used by the alignment and fusion processing
 	float getMagDeclination();
 
-	// Return the magnetic field in Gauss to be used by the alignment and fusion processing
-	Vector3f getGeoMagNED();
-
 	// reset position states of the ekf (only horizontal position)
 	bool resetPosition();
 
@@ -727,6 +724,8 @@ private:
 	// Uses known earth field
 	// Requires 360 deg yaw rotation perfornmed whebn on-ground
 	void fuseMagCal();
+	Vector3f getGeoMagNED();
+
 	struct {
 		Vector3f mag_bias;
 		float yaw_offset;

@@ -797,22 +797,6 @@ float Ekf::getMagDeclination()
 	}
 }
 
-// Return the magnetic field in Gauss to be used by  alignment and fusion processing
-Vector3f Ekf::getGeoMagNED()
-{
-	// use parameter value until GPS is available, then use value returned by geo library
-	if (_NED_origin_initialised) {
-		// predicted earth field vector
-		float mag_h = _mag_strength_gps * cosf(_mag_inclination_gps);
-		Vector3f mag_EF{cosf(_mag_declination_gps) * mag_h, sinf(_mag_declination_gps) * mag_h, _mag_strength_gps * sinf(_mag_inclination_gps) };
-		return mag_EF;
-
-	} else {
-		float mag_h = _params.mag_strength_gauss * cosf(math::radians(_params.mag_inclination_deg));
-		Vector3f mag_EF{-cosf(math::radians(_params.mag_declination_deg)) * mag_h, -sinf(math::radians(_params.mag_declination_deg)) * mag_h, -_params.mag_strength_gauss * sinf(math::radians(_params.mag_inclination_deg))};
-		return mag_EF;
-	}
-}
 // This function forces the covariance matrix to be symmetric
 void Ekf::makeSymmetrical(float (&cov_mat)[_k_num_states][_k_num_states], uint8_t first, uint8_t last)
 {
