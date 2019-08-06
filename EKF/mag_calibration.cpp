@@ -49,86 +49,127 @@ void Ekf::fuseMagCal()
 		return;
 	}
 
-	// check if yaw rate and tilt is sufficient to perform calibration
-	if (_imu_sample_delayed.delta_ang_dt > 0.0001f) {
-	// apply imu bias corrections to sensor data
-		Vector3f corrected_delta_ang = _imu_sample_delayed.delta_ang - _state.gyro_bias;
+	if (_mag_sample_index < 36 && fabsf(_mag_cal_yaw_delta_sum) < math::radians(360.0f)) {
+		// save field, quaternion and time step to struct until we have 360 deg coverage.
 
-		float yaw_rate = _R_to_earth(2,0) * corrected_delta_ang(0)
-				+ _R_to_earth(2,1) * corrected_delta_ang(1)
-				+ _R_to_earth(2,2) * corrected_delta_ang(2);
-		yaw_rate = yaw_rate / _imu_sample_delayed.delta_ang_dt;
+		// check if yaw rate and tilt is sufficient to perform calibration
+		float yaw_rate;
+		if (_imu_sample_delayed.delta_ang_dt > 0.0001f) {
+		// apply imu bias corrections to sensor data
+			Vector3f corrected_delta_ang = _imu_sample_delayed.delta_ang - _state.gyro_bias;
 
-		bool tilt_ok = _R_to_earth(2,2) > cosf(math::radians(45.0f));
+			yaw_rate = _R_to_earth(2,0) * corrected_delta_ang(0)
+					+ _R_to_earth(2,1) * corrected_delta_ang(1)
+					+ _R_to_earth(2,2) * corrected_delta_ang(2);
+			yaw_rate = yaw_rate / _imu_sample_delayed.delta_ang_dt;
 
-		if (!_mag_bias_ekf_active && fabsf(yaw_rate) > math::radians(10.0f) && tilt_ok) {
-			_mag_bias_ekf_active = true;
-		} else if (_mag_bias_ekf_active && (fabsf(yaw_rate) < math::radians(5.0f) || !tilt_ok)) {
-			_mag_bias_ekf_active = false;
+			bool tilt_ok = _R_to_earth(2,2) > cosf(math::radians(45.0f));
+
+			if (!_mag_cal_sampling_active && fabsf(yaw_rate) > math::radians(10.0f) && tilt_ok) {
+				_mag_cal_sampling_active = true;
+			} else if (_mag_cal_sampling_active && (fabsf(yaw_rate) < math::radians(5.0f) || !tilt_ok)) {
+				_mag_cal_sampling_active = false;
+			}
+
+		} else {
+			// invalid dt so can't proceed
+			return;
+
 		}
 
-	} else {
-		// invalid dt so can't proceed
-		return;
+		// don't run if main filter is using the magnetomer or if excessively tilted of if not rotating quickly enough
+		if (!_mag_use_inhibit || !_mag_cal_sampling_active) {
+			return;
+		}
 
-	}
+		// limit to run once per 10 degrees of yaw rotation and check for reversal of rotation
+		Eulerf euler321(_state.quat_nominal);
+		float yaw_delta = euler321(2) - _mag_bias_ekf_yaw_last;
+		if (yaw_delta > M_PI_F) {
+			yaw_delta -= M_TWOPI_F;
+		} else if (yaw_delta < -M_PI_F) {
+			yaw_delta += M_TWOPI_F;
+		}
+		if (fabsf(yaw_delta) < math::radians(10.0f) || (yaw_delta * (float)_mag_cal_direction) < -0.001f) {
+			return;
+		}
+		_mag_bias_ekf_yaw_last = euler321(2);
+		_mag_cal_yaw_delta_sum += yaw_delta;
 
-	// don't run if main filter is using the magnetomer or if excessively tilted of if not rotating quickly enough
-	if (!_mag_use_inhibit || !_mag_bias_ekf_active) {
-		return;
-	}
+		// reset the calibrator first time or if data sampling is interrupted for more than 10 seconds
+		float time_delta_sec =  1E-6f * (float)(_imu_sample_delayed.time_us - _mag_cal_sample_time_us);
+		if (_mag_cal_sample_time_us == 0 || time_delta_sec > 10 ) {
+			// reset covariance matrix
+			memset(_mag_cov_mat, 0, sizeof(_mag_cov_mat));
+			_mag_cov_mat[0][0] = sq(0.05f);
+			_mag_cov_mat[1][1] = sq(0.05f);
+			_mag_cov_mat[2][2] = sq(0.05f);
+			_mag_cov_mat[3][3] = sq(0.1f);
 
-	// limit to run once per 10 degrees of yaw rotation
-	Eulerf euler321(_state.quat_nominal);
-	float yaw_delta = euler321(2) - _mag_bias_ekf_yaw_last;
-	if (yaw_delta > M_PI_F) {
-		yaw_delta -= M_TWOPI_F;
-	} else if (yaw_delta < -M_PI_F) {
-		yaw_delta += M_TWOPI_F;
-	}
-	if (fabsf(yaw_delta) < math::radians(10.0f)) {
-		return;
-	}
-	_mag_bias_ekf_yaw_last = euler321(2);
+			// reset states to zero
+			_mag_cal_states.mag_bias(0) = 0.0f;
+			_mag_cal_states.mag_bias(1) = 0.0f;
+			_mag_cal_states.mag_bias(2) = 0.0f;
+			_mag_cal_states.yaw_offset = 0.0f;
 
-	// reset the covariance matrix and states first time of if data hasn't been fused in the last 20 seconds
-	float time_delta_sec =  1E-6f * (float)(_imu_sample_delayed.time_us - _mag_bias_ekf_time_us);
-	_mag_bias_ekf_time_us = _imu_sample_delayed.time_us;
-	if (_mag_bias_ekf_time_us == 0 || time_delta_sec > 20 ) {
-		memset(_mag_cov_mat, 0, sizeof(_mag_cov_mat));
-		_mag_cov_mat[0][0] = sq(0.05f);
-		_mag_cov_mat[1][1] = sq(0.05f);
-		_mag_cov_mat[2][2] = sq(0.05f);
-		_mag_cov_mat[3][3] = sq(0.1f);
-		_mag_cal_states.mag_bias(0) = 0.0f;
-		_mag_cal_states.mag_bias(1) = 0.0f;
-		_mag_cal_states.mag_bias(2) = 0.0f;
-		_mag_cal_states.yaw_offset = 0.0f;
-		_mag_sample_index = 0;
+			// reset all counters
+			_mag_cal_iteration_index = 0;
+			_mag_sample_index = 0;
+			_mag_cal_direction = 0;
+			_mag_cal_yaw_delta_sum = 0.0f;
 
-		return;
+			// record time to prevent reset repeating
+			_mag_cal_sample_time_us = _imu_sample_delayed.time_us;
 
-	}
+			return;
 
-	// save field, quaternion and time step to struct
-	if (_mag_sample_index < 36) {
+		}
+
+		if (_mag_sample_index == 0) {
+			time_delta_sec = 0.0f;
+
+			// rotate the magnetometer measurements into earth frame assuming a zero yaw angle
+			Vector3f mag_earth_meas = _R_to_earth * _mag_sample_delayed.mag;
+
+			// calulate how much we need to rotate the earth field to start with zero yaw error
+			_mag_cal_decl_offset = atan2f(mag_earth_meas(1), mag_earth_meas(0)) - getMagDeclination();
+
+			// get earth field from tables
+			_mag_field_EF = getGeoMagNED();
+
+			// rotate to match local yaw
+			float mn = _mag_field_EF(0) * cosf(_mag_cal_decl_offset) - _mag_field_EF(1) * sinf(_mag_cal_decl_offset);
+			float me = _mag_field_EF(1) * cosf(_mag_cal_decl_offset) + _mag_field_EF(0) * sinf(_mag_cal_decl_offset);
+			_mag_field_EF(0) = mn;
+			_mag_field_EF(1) = me;
+
+			// record direction of yaw sample
+			if (yaw_delta > 0.0f) {
+				_mag_cal_direction = 1;
+			} else {
+				_mag_cal_direction = -1;
+			}
+			printf("start sampling at yaw = %5.3f, dirn = %i\n",(double)euler321(2),_mag_cal_direction);
+		}
+
 		_mag_cal_fit_data[_mag_sample_index].mag_data = _mag_sample_delayed.mag;
 		_mag_cal_fit_data[_mag_sample_index].quaternion = _state.quat_nominal;
 		_mag_cal_fit_data[_mag_sample_index].time_step = time_delta_sec;
+		_mag_cal_sample_time_us = _imu_sample_delayed.time_us;
 		_mag_sample_index++;
+
 	} else {
+		// Process stored measurements
+
 		// XYZ Measurement noise.
 		float R_MAG = fmaxf(_params.mag_noise, 0.0f);
 		R_MAG = R_MAG * R_MAG;
 
-		// predicted earth field vector
-		Vector3f mag_EF = getGeoMagNED();
-
 		// copy to variable names used by autocode
 		// TODO remove
-		float mn = mag_EF(0);
-		float me = mag_EF(1);
-		float md = mag_EF(2);
+		float mn = _mag_field_EF(0);
+		float me = _mag_field_EF(1);
+		float md = _mag_field_EF(2);
 
 		// Observation jacobian and Kalman gain vectors
 		float H_MAG[4];
@@ -145,7 +186,7 @@ void Ekf::fuseMagCal()
 			_mag_cov_mat[3][3] += yaw_process_noise_variance;
 
 			// update the states and covariance using sequential fusion of the magnetometer components
-			for (uint8_t index = 0; index <= 2; index++) {
+			for (uint8_t index = 0; index < 3; index++) {
 				// rotate the quaternions by the yaw offset state
 				Quatf quat_relative;
 				quat_relative(0) = cosf(_mag_cal_states.yaw_offset);
@@ -158,7 +199,7 @@ void Ekf::fuseMagCal()
 				Matrix3f Teb = matrix::Dcmf(quat_relative).transpose();
 
 				// rotate earth field into body frame and add bias states to get predicted measurement
-				Vector3f mag_obs_predicted = Teb * mag_EF + _mag_cal_states.mag_bias;
+				Vector3f mag_obs_predicted = Teb * _mag_field_EF + _mag_cal_states.mag_bias;
 
 				// copy to variable names used by autocode
 				// TODO remove
@@ -326,25 +367,42 @@ void Ekf::fuseMagCal()
 				_mag_cal_states.yaw_offset = math::constrain(_mag_cal_states.yaw_offset, -math::radians(180.0f), math::radians(180.0f));
 			}
 		}
-		// replay debug code
-		printf("states = %5.3f,%5.3f,%5.3f , %5.3f,\n",
-		(double)_mag_cal_states.mag_bias(0), (double)_mag_cal_states.mag_bias(1), (double)_mag_cal_states.mag_bias(2),
-		(double)_mag_cal_states.yaw_offset);
-		rss_innov[0] = sqrtf((1.0f/36.0f) * rss_innov[0]);
-		rss_innov[1] = sqrtf((1.0f/36.0f) * rss_innov[1]);
-		rss_innov[2] = sqrtf((1.0f/36.0f) * rss_innov[2]);
 
-		if (_mag_cal_interation_index > 10) {
+		// get the RSS residiual for each sensor axis
+		const float k1 = 1.0f / (float)_mag_sample_index;
+		rss_innov[0] = k1 * rss_innov[0];
+		rss_innov[1] = k1 * rss_innov[1];
+		rss_innov[2] = k1 * rss_innov[2];
+
+		// Simple convergence test that runs a minimum of 5 iterations and completes when reduction in residuals has fallen below 0.1%
+		// up to a maximum of 50
+		if (_mag_cal_iteration_index > 4) {
 			_mag_cal_complete = rss_innov[0] / _mag_cal_residual[0] > 0.999f &&
 						rss_innov[1] / _mag_cal_residual[1] > 0.999f &&
 						rss_innov[2] / _mag_cal_residual[2] > 0.999f;
+		} else if (_mag_cal_iteration_index > 49) {
+			_mag_cal_complete = true;
+			printf("calibration failed to converge\n");
 		}
 		for (uint8_t index = 0; index < 3; index++) {
 			_mag_cal_residual[index] = rss_innov[index];
 		}
-		_mag_cal_interation_index++;
+		_mag_cal_iteration_index++;
 
-		printf("residuals = %5.3f,%5.3f,%5.3f\n\n",(double)rss_innov[0],(double)rss_innov[1],(double)rss_innov[2]);
+		// replay debug print
+		if (_mag_cal_complete) {
+			printf("\ncompleted after %u iterations\n",(unsigned)_mag_cal_iteration_index);
+			printf("bias = %5.3f,%5.3f,%5.3f yaw = %5.3f,\n",
+			(double)_mag_cal_states.mag_bias(0), (double)_mag_cal_states.mag_bias(1), (double)_mag_cal_states.mag_bias(2),
+			(double)_mag_cal_states.yaw_offset);
+			printf("residuals = %5.3f,%5.3f,%5.3f\n\n",(double)rss_innov[0],(double)rss_innov[1],(double)rss_innov[2]);
+			_mag_cal_complete = false;
+			_mag_cal_iteration_index = 0;
+			_mag_sample_index = 0;
+			_mag_cal_sample_time_us = 0;
+			_mag_cal_direction = 0;
+		}
+
 		//Matrix3f R = matrix::Dcmf(_mag_cal_fit_data[replay_index].quaternion).transpose();
 		//mag_obs_predicted = R * mag_EF;
 		//printf("EF = %5.3f,%5.3f,%5.3f\n",(double)mag_EF(0),(double)mag_EF(1),(double)mag_EF(2));

@@ -731,8 +731,8 @@ private:
 		float yaw_offset;
 	} _mag_cal_states{};		///< states used by mag bias EKF
 	float _mag_cov_mat[5][5] = {};	///< covariance matrix used by mag bias EKF
-	bool _mag_bias_ekf_active = false;	///< true when the mag bias EKF is active
-	uint64_t _mag_bias_ekf_time_us{0};	///< last time a mag sample was fused (uSec)
+	bool _mag_cal_sampling_active = false;	///< true when the mag bias EKF is active
+	uint64_t _mag_cal_sample_time_us{0};	///< last time a mag sample was fused (uSec)
 	float _mag_bias_ekf_yaw_last{0.0f};	///< yaw angle when data last used (rad)
 	struct mag_cal_obs {
 		Vector3f mag_data;
@@ -741,8 +741,13 @@ private:
 	};
 	mag_cal_obs _mag_cal_fit_data[36];
 	uint8_t _mag_sample_index{0};
-	uint8_t _mag_cal_interation_index{0};
+	uint8_t _mag_cal_iteration_index{0};
 	float _mag_cal_residual[3];
 	bool _mag_cal_complete{false};
+	int8_t _mag_cal_direction{0};
+	float _yaw_offset{0.0f};
+	float _mag_cal_yaw_delta_sum{0.0f};
+	float _mag_cal_decl_offset{0.0f};
+	Vector3f _mag_field_EF;
 
 };
