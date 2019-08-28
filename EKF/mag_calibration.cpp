@@ -82,7 +82,7 @@ void Ekf::fuseMagCal()
 			return;
 		}
 
-		// limit to run once per 10 degrees of yaw rotation and check for reversal of rotation
+		// limit to run once per 8 degrees of yaw rotation and check for reversal of rotation
 		Eulerf euler321(_state.quat_nominal);
 		float yaw_delta = euler321(2) - _mag_bias_ekf_yaw_last;
 		if (yaw_delta > M_PI_F) {
@@ -90,7 +90,7 @@ void Ekf::fuseMagCal()
 		} else if (yaw_delta < -M_PI_F) {
 			yaw_delta += M_TWOPI_F;
 		}
-		if (fabsf(yaw_delta) < math::radians(10.0f) || (yaw_delta * (float)_mag_cal_direction) < -0.001f) {
+		if (fabsf(yaw_delta) < math::radians(8.0f) || (yaw_delta * (float)_mag_cal_direction) < -0.001f) {
 			return;
 		}
 		_mag_bias_ekf_yaw_last = euler321(2);
