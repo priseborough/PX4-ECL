@@ -385,7 +385,7 @@ void Ekf::fuseMagCal()
 
 		if (_mag_cal_iteration_index > 4 && solution_converged) {
 			_mag_cal_complete = true;
-		} else if (_mag_cal_iteration_index > 99) {
+		} else if (_mag_cal_iteration_index >= 99) {
 			if (fmaxf(fmaxf(rss_innov[0],rss_innov[1]),rss_innov[2]) >= 0.05f) {
 				// rotate mag field by 45 degrees and try again
 				if (_retry_count < 7) {
