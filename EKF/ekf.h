@@ -745,9 +745,9 @@ private:
 	float _mag_cal_residual[3];
 	bool _mag_cal_complete{false};
 	int8_t _mag_cal_direction{0};
-	float _yaw_offset{0.0f};
 	float _mag_cal_yaw_delta_sum{0.0f};
 	float _mag_cal_decl_offset{0.0f};
 	Vector3f _mag_field_EF;
+	uint8_t _retry_count{0};
 
 };

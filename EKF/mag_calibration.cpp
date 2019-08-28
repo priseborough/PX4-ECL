@@ -49,8 +49,8 @@ void Ekf::fuseMagCal()
 		return;
 	}
 
-	if (_mag_sample_index < 36 && fabsf(_mag_cal_yaw_delta_sum) < math::radians(360.0f)) {
-		// save field, quaternion and time step to struct until we have 360 deg coverage.
+	if (_mag_sample_index < 36 && fabsf(_mag_cal_yaw_delta_sum) < math::radians(315.0f)) {
+		// save field, quaternion and time step to struct until we have sufficient coverage.
 
 		// check if yaw rate and tilt is sufficient to perform calibration
 		float yaw_rate;
@@ -101,10 +101,10 @@ void Ekf::fuseMagCal()
 		if (_mag_cal_sample_time_us == 0 || time_delta_sec > 10 ) {
 			// reset covariance matrix
 			memset(_mag_cov_mat, 0, sizeof(_mag_cov_mat));
-			_mag_cov_mat[0][0] = sq(0.05f);
-			_mag_cov_mat[1][1] = sq(0.05f);
-			_mag_cov_mat[2][2] = sq(0.05f);
-			_mag_cov_mat[3][3] = sq(0.1f);
+			_mag_cov_mat[0][0] = sq(0.2f);
+			_mag_cov_mat[1][1] = sq(0.2f);
+			_mag_cov_mat[2][2] = sq(0.2f);
+			_mag_cov_mat[3][3] = sq(0.2f);
 
 			// reset states to zero
 			_mag_cal_states.mag_bias(0) = 0.0f;
@@ -149,7 +149,7 @@ void Ekf::fuseMagCal()
 			} else {
 				_mag_cal_direction = -1;
 			}
-			printf("start sampling at %5.1f sec, yaw = %5.3f, dirn = %i\n",1.E-6*(double)_imu_sample_new.time_us,(double)euler321(2),_mag_cal_direction);
+			printf("/nstart sampling at %5.1f sec, yaw = %5.3f, dirn = %i\n",1.E-6*(double)_imu_sample_new.time_us,(double)euler321(2),_mag_cal_direction);
 		}
 
 		_mag_cal_fit_data[_mag_sample_index].mag_data = _mag_sample_delayed.mag;
@@ -367,22 +367,61 @@ void Ekf::fuseMagCal()
 				_mag_cal_states.yaw_offset = math::constrain(_mag_cal_states.yaw_offset, -math::radians(180.0f), math::radians(180.0f));
 			}
 		}
-
 		// get the RSS residiual for each sensor axis
 		const float k1 = 1.0f / (float)_mag_sample_index;
 		rss_innov[0] = k1 * rss_innov[0];
 		rss_innov[1] = k1 * rss_innov[1];
 		rss_innov[2] = k1 * rss_innov[2];
 
-		// Simple convergence test that runs a minimum of 5 iterations and completes when reduction in residuals has fallen below 0.1%
-		// up to a maximum of 50
-		if (_mag_cal_iteration_index > 4) {
-			_mag_cal_complete = rss_innov[0] / _mag_cal_residual[0] > 0.999f &&
+		// Simple convergence test that runs a minimum of 5 and a maximum of 100 iterations
+		// Assume converged if  worst single axis residual is less than 50 mGauss and the reduction in residual for all axes from the prrevious iteration is less than 0.1%
+		// If convergence fails then rotate the earth field by 45 degrees and try again for a maximum of 7 retries.
+		// This will give a maximum of 8 yaw starting points 45 degrees apart so that a bad initial yaw cguess aused by a large mag bias does not casue convergene failure
+		bool solution_converged = rss_innov[0] / _mag_cal_residual[0] > 0.999f &&
 						rss_innov[1] / _mag_cal_residual[1] > 0.999f &&
-						rss_innov[2] / _mag_cal_residual[2] > 0.999f;
-		} else if (_mag_cal_iteration_index > 49) {
+						rss_innov[2] / _mag_cal_residual[2] > 0.999f &&
+						fmaxf(fmaxf(rss_innov[0],rss_innov[1]),rss_innov[2]) < 0.05f;
+
+		if (_mag_cal_iteration_index > 4 && solution_converged) {
 			_mag_cal_complete = true;
-			printf("calibration failed to converge\n");
+		} else if (_mag_cal_iteration_index > 99) {
+			if (fmaxf(fmaxf(rss_innov[0],rss_innov[1]),rss_innov[2]) >= 0.05f) {
+				// rotate mag field by 45 degrees and try again
+				if (_retry_count < 7) {
+					printf("trying new yaw offset\n");
+					float mn_temp = _mag_field_EF(0) * cosf(math::radians(45.0f)) - _mag_field_EF(1) * sinf(math::radians(45.0f));
+					float me_temp = _mag_field_EF(1) * cosf(math::radians(45.0f)) + _mag_field_EF(0) * sinf(math::radians(45.0f));
+					_mag_field_EF(0) = mn_temp;
+					_mag_field_EF(1) = me_temp;
+
+					// restart iteration
+					_mag_cal_iteration_index = 0;
+					_retry_count ++;
+					_mag_cal_complete = false;
+
+					// reset covariance matrix
+					memset(_mag_cov_mat, 0, sizeof(_mag_cov_mat));
+					_mag_cov_mat[0][0] = sq(0.2f);
+					_mag_cov_mat[1][1] = sq(0.2f);
+					_mag_cov_mat[2][2] = sq(0.2f);
+					_mag_cov_mat[3][3] = sq(0.2f);
+
+					// reset states to zero
+					_mag_cal_states.mag_bias(0) = 0.0f;
+					_mag_cal_states.mag_bias(1) = 0.0f;
+					_mag_cal_states.mag_bias(2) = 0.0f;
+					_mag_cal_states.yaw_offset = 0.0f;
+
+				} else {
+					printf("convergence failed");
+					_mag_cal_complete = true;
+
+				}
+			} else {
+				printf("convergence was slow");
+				_mag_cal_complete = true;
+			}
+
 		}
 		for (uint8_t index = 0; index < 3; index++) {
 			_mag_cal_residual[index] = rss_innov[index];
@@ -391,7 +430,7 @@ void Ekf::fuseMagCal()
 
 		// replay debug print
 		if (_mag_cal_complete) {
-			printf("\ncompleted at %5.1f sec after %u iterations\n",1E-6*(double)_imu_sample_new.time_us,(unsigned)_mag_cal_iteration_index);
+			printf("completed at %5.1f sec after %u iterations\n",1E-6*(double)_imu_sample_new.time_us,(unsigned)_mag_cal_iteration_index);
 			printf("bias = %5.3f,%5.3f,%5.3f yaw = %5.3f,\n",
 			(double)_mag_cal_states.mag_bias(0), (double)_mag_cal_states.mag_bias(1), (double)_mag_cal_states.mag_bias(2),
 			(double)_mag_cal_states.yaw_offset);
@@ -401,6 +440,7 @@ void Ekf::fuseMagCal()
 			_mag_sample_index = 0;
 			_mag_cal_sample_time_us = 0;
 			_mag_cal_direction = 0;
+			_retry_count = 0;
 		}
 
 		//Matrix3f R = matrix::Dcmf(_mag_cal_fit_data[replay_index].quaternion).transpose();
