@@ -149,7 +149,7 @@ void Ekf::fuseMagCal()
 			} else {
 				_mag_cal_direction = -1;
 			}
-			printf("start sampling at yaw = %5.3f, dirn = %i\n",(double)euler321(2),_mag_cal_direction);
+			printf("start sampling at %5.1f sec, yaw = %5.3f, dirn = %i\n",1.E-6*(double)_imu_sample_new.time_us,(double)euler321(2),_mag_cal_direction);
 		}
 
 		_mag_cal_fit_data[_mag_sample_index].mag_data = _mag_sample_delayed.mag;
@@ -391,7 +391,7 @@ void Ekf::fuseMagCal()
 
 		// replay debug print
 		if (_mag_cal_complete) {
-			printf("\ncompleted after %u iterations\n",(unsigned)_mag_cal_iteration_index);
+			printf("\ncompleted at %5.1f sec after %u iterations\n",1E-6*(double)_imu_sample_new.time_us,(unsigned)_mag_cal_iteration_index);
 			printf("bias = %5.3f,%5.3f,%5.3f yaw = %5.3f,\n",
 			(double)_mag_cal_states.mag_bias(0), (double)_mag_cal_states.mag_bias(1), (double)_mag_cal_states.mag_bias(2),
 			(double)_mag_cal_states.yaw_offset);
