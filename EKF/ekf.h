@@ -727,27 +727,28 @@ private:
 	Vector3f getGeoMagNED();
 
 	struct {
-		Vector3f mag_bias;
-		float yaw_offset;
-	} _mag_cal_states{};		///< states used by mag bias EKF
-	float _mag_cov_mat[5][5] = {};	///< covariance matrix used by mag bias EKF
+		Vector3f mag_bias;		// XYZ body franme magnetomer bias (Ga)
+		float yaw_offset;		// yaw angle offset (rad)
+	} _mag_cal_states{};			///< states used by mag bias EKF
+
+	float _mag_cov_mat[5][5] = {};		///< covariance matrix used by mag bias EKF
 	bool _mag_cal_sampling_active = false;	///< true when the mag bias EKF is active
 	uint64_t _mag_cal_sample_time_us{0};	///< last time a mag sample was fused (uSec)
 	float _mag_bias_ekf_yaw_last{0.0f};	///< yaw angle when data last used (rad)
+
 	struct mag_cal_obs {
-		Vector3f mag_data;
-		Quatf quaternion;
-		float time_step;
-	};
-	mag_cal_obs _mag_cal_fit_data[36];
-	uint8_t _mag_sample_index{0};
-	uint8_t _mag_cal_iteration_index{0};
-	float _mag_cal_residual[3];
-	bool _mag_cal_complete{false};
-	int8_t _mag_cal_direction{0};
-	float _mag_cal_yaw_delta_sum{0.0f};
-	float _mag_cal_decl_offset{0.0f};
-	Vector3f _mag_field_EF;
-	uint8_t _retry_count{0};
+		Vector3f mag_data; 		// XYZ body frame mag field data (Ga)
+		Quatf quaternion;  		// quaternion describing the rotation from body to earth frame
+		float time_step;		// time lapsed from the previous measurement (sec)
+	};					///< data structure used to store observation data points used by the calibration EKF
+
+	mag_cal_obs _mag_cal_fit_data[36];	///< array of calibration data points stored for processing by the calibration EKF
+	uint8_t _mag_sample_index{0};		///< index that increments with each new data point is stored for processing
+	uint8_t _mag_cal_iteration_index{0};	///< loop counter used to control how many many timnes the calibration EKF loops through the data set
+	float _mag_cal_residual[3];		///< mag calibration residuals resulting from previous pass of calibration EKF through the stored data (Ga)
+	bool _mag_cal_complete{false};		///< true when processing of the current stored data is complete
+	int8_t _mag_cal_direction{0};		///< used to remember the direction of yaw rotation 1=CW, -1=CCW
+	Vector3f _mag_field_EF;			///< magnetic field in earth frame used by the calibrator after application of yaw rotation to match vehicle assumed zero yaw at start (Ga)
+	uint8_t _retry_count{0};		///< loop counter used to control how many times we rotate the earth field and re-start the EKF processing if the previous attempt failed to converge
 
 };

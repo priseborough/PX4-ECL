@@ -95,10 +95,11 @@ void Ekf::fuseMagCal()
 			return;
 		}
 		_mag_bias_ekf_yaw_last = euler321(2);
-		_mag_cal_yaw_delta_sum += yaw_delta;
+
+		// calculate the time lapsed since the last sample
+		float time_delta_sec =  1E-6f * (float)(_imu_sample_delayed.time_us - _mag_cal_sample_time_us);
 
 		// reset the calibrator first time or if data sampling is interrupted for more than 10 seconds
-		float time_delta_sec =  1E-6f * (float)(_imu_sample_delayed.time_us - _mag_cal_sample_time_us);
 		if (_mag_cal_sample_time_us == 0 || time_delta_sec > 10 ) {
 			// reset covariance matrix
 			memset(_mag_cov_mat, 0, sizeof(_mag_cov_mat));
@@ -117,7 +118,6 @@ void Ekf::fuseMagCal()
 			_mag_cal_iteration_index = 0;
 			_mag_sample_index = 0;
 			_mag_cal_direction = 0;
-			_mag_cal_yaw_delta_sum = 0.0f;
 
 			// record time to prevent reset repeating
 			_mag_cal_sample_time_us = _imu_sample_delayed.time_us;
@@ -126,31 +126,37 @@ void Ekf::fuseMagCal()
 
 		}
 
+		/*
+		When storing the first sample in the data set we need to:
+		- store a earth field vector for use by the EKF that is consistent with an initial magnetic heading error of zero
+		- record the direction of rotation to enable detection  of any rotation reversal
+		*/
 		if (_mag_sample_index == 0) {
+			// the time lapsed since previous sample is set to zero for the first sample in a data set
 			time_delta_sec = 0.0f;
 
-			// rotate the magnetometer measurements into earth frame assuming a zero yaw angle
+			// rotate the magnetometer measurements into earth frame
 			Vector3f mag_earth_meas = _R_to_earth * _mag_sample_delayed.mag;
 
 			// calulate how much we need to rotate the earth field to start with zero yaw error
-			_mag_cal_decl_offset = atan2f(mag_earth_meas(1), mag_earth_meas(0)) - getMagDeclination();
+			float decl_offset = atan2f(mag_earth_meas(1), mag_earth_meas(0)) - getMagDeclination();
 
 			// get earth field from tables
 			_mag_field_EF = getGeoMagNED();
 
 			// rotate to match local yaw
-			float mn = _mag_field_EF(0) * cosf(_mag_cal_decl_offset) - _mag_field_EF(1) * sinf(_mag_cal_decl_offset);
-			float me = _mag_field_EF(1) * cosf(_mag_cal_decl_offset) + _mag_field_EF(0) * sinf(_mag_cal_decl_offset);
+			float mn = _mag_field_EF(0) * cosf(decl_offset) - _mag_field_EF(1) * sinf(decl_offset);
+			float me = _mag_field_EF(1) * cosf(decl_offset) + _mag_field_EF(0) * sinf(decl_offset);
 			_mag_field_EF(0) = mn;
 			_mag_field_EF(1) = me;
 
 			// record direction of yaw sample
 			if (yaw_delta > 0.0f) {
-				_mag_cal_direction = 1;
+				_mag_cal_direction = 1; // CW
 			} else {
-				_mag_cal_direction = -1;
+				_mag_cal_direction = -1; // CCW
 			}
-			printf("/nstart sampling at %5.1f sec, yaw = %5.3f, dirn = %i\n",1.E-6*(double)_imu_sample_new.time_us,(double)euler321(2),_mag_cal_direction);
+			printf("\nstarting sampling at %5.1f sec, yaw = %5.3f, dirn = %i\n",1.E-6*(double)_imu_sample_new.time_us,(double)euler321(2),_mag_cal_direction);
 		}
 
 		_mag_cal_fit_data[_mag_sample_index].mag_data = _mag_sample_delayed.mag;
@@ -389,7 +395,7 @@ void Ekf::fuseMagCal()
 			if (fmaxf(fmaxf(rss_innov[0],rss_innov[1]),rss_innov[2]) >= 0.05f) {
 				// rotate mag field by 45 degrees and try again
 				if (_retry_count < 7) {
-					printf("trying new yaw offset\n");
+					printf("trying new earth field yaw offset\n");
 					float mn_temp = _mag_field_EF(0) * cosf(math::radians(45.0f)) - _mag_field_EF(1) * sinf(math::radians(45.0f));
 					float me_temp = _mag_field_EF(1) * cosf(math::radians(45.0f)) + _mag_field_EF(0) * sinf(math::radians(45.0f));
 					_mag_field_EF(0) = mn_temp;
@@ -424,6 +430,8 @@ void Ekf::fuseMagCal()
 			}
 
 		}
+
+		// store residuals for use by convergence check next iteration
 		for (uint8_t index = 0; index < 3; index++) {
 			_mag_cal_residual[index] = rss_innov[index];
 		}
