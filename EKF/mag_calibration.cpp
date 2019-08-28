@@ -49,7 +49,8 @@ void Ekf::fuseMagCal()
 		return;
 	}
 
-	if (_mag_sample_index < 36 && fabsf(_mag_cal_yaw_delta_sum) < math::radians(315.0f)) {
+	const uint8_t n_samples = 36;
+	if (_mag_sample_index < n_samples) {
 		// save field, quaternion and time step to struct until we have sufficient coverage.
 
 		// check if yaw rate and tilt is sufficient to perform calibration
@@ -368,7 +369,7 @@ void Ekf::fuseMagCal()
 			}
 		}
 		// get the RSS residiual for each sensor axis
-		const float k1 = 1.0f / (float)_mag_sample_index;
+		const float k1 = 1.0f / (float)n_samples;
 		rss_innov[0] = k1 * rss_innov[0];
 		rss_innov[1] = k1 * rss_innov[1];
 		rss_innov[2] = k1 * rss_innov[2];
@@ -413,12 +414,12 @@ void Ekf::fuseMagCal()
 					_mag_cal_states.yaw_offset = 0.0f;
 
 				} else {
-					printf("convergence failed");
+					printf("convergence failed, residuals = %5.3f,%5.3f,%5.3f\n",(double)rss_innov[0],(double)rss_innov[1],(double)rss_innov[2]);
 					_mag_cal_complete = true;
 
 				}
 			} else {
-				printf("convergence was slow");
+				printf("convergence was slow\n");
 				_mag_cal_complete = true;
 			}
 
