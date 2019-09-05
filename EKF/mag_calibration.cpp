@@ -43,7 +43,102 @@
 #include <ecl.h>
 #include <mathlib/mathlib.h>
 
-void Ekf::fuseMagCal()
+void Ekf::calcMagCalQuat()
+{
+	// generate attitude solution using simple complementary filter
+
+	// check for excessive acceleration.
+	Vector3f accel = _imu_sample_delayed.delta_vel / _imu_sample_delayed.delta_vel_dt;
+	const float accel_norm_sq = accel.norm_squared();
+	const float upper_accel_limit = CONSTANTS_ONE_G * 1.1f;
+	const float lower_accel_limit = CONSTANTS_ONE_G * 0.9f;
+
+	// Angular rate of correction
+	bool ok_to_align = ((accel_norm_sq > lower_accel_limit * lower_accel_limit &&
+			  accel_norm_sq < upper_accel_limit * upper_accel_limit));
+
+	// Iniitialise quaternion first time
+	if (!_mag_cal_quat_initialised) {
+		if (ok_to_align) {
+			// Rotation matrix can be easily constructed from acceleration
+			// assuming zero yaw
+			// 'k' is Earth Z axis (Down) unit vector in body frame
+			Vector3f k_init = -_imu_sample_delayed.delta_vel;
+			k_init.normalize();
+
+			// 'i' is Earth X axis (North) unit vector in body frame, orthogonal with 'k'
+			Vector3f temp(1.0f,0.0f,0.0f);
+			Vector3f i_init = (temp - k_init * (temp * k_init));
+			i_init.normalize();
+
+			// 'j' is Earth Y axis (East) unit vector in body frame, orthogonal with 'k' and 'i'
+			Vector3f j_init = k_init % i_init;
+
+			// Fill rotation matrix
+			Dcmf R;
+			R.setRow(0, i_init);
+			R.setRow(1, j_init);
+			R.setRow(2, k_init);
+
+			// Convert to quaternion
+			_mag_cal_quat = R;
+
+			_mag_cal_quat_initialised = true;
+// debug print to compare between this and main EKF
+Eulerf temp1(_mag_cal_quat);
+Eulerf temp2(_state.quat_nominal);
+printf("roll=%5.1f,%5.1f\n",(double)math::degrees(temp1(0)),(double)math::degrees(temp2(0)));
+printf("pitch=%5.1f,%5.1f\n",(double)math::degrees(temp1(1)),(double)math::degrees(temp2(1)));
+printf("yaw=%5.1f,%5.1f\n",(double)math::degrees(temp1(2)),(double)math::degrees(temp2(2)));
+
+		}
+	} else {
+		// Accelerometer correction
+		// Project 'k' unit vector of earth frame to body frame
+		// Vector3f k = quaterion.conjugate_inversed(Vector3f(0.0f, 0.0f, 1.0f));
+		// Optimized version with dropped zeros
+		Vector3f k(
+			2.0f * (_mag_cal_quat(1) * _mag_cal_quat(3) - _mag_cal_quat(0) * _mag_cal_quat(2)),
+			2.0f * (_mag_cal_quat(2) * _mag_cal_quat(3) + _mag_cal_quat(0) * _mag_cal_quat(1)),
+			(_mag_cal_quat(0) * _mag_cal_quat(0) - _mag_cal_quat(1) * _mag_cal_quat(1) - _mag_cal_quat(2) * _mag_cal_quat(2) + _mag_cal_quat(3) * _mag_cal_quat(3))
+		);
+
+		// fuse accel data only if its norm is close to 1 g (reduces drift when vehicle picked up and moved).
+		// Angular rate correction
+		const float accel_fusion_gain = 0.4f;
+		Vector3f corr;
+		if (ok_to_align) {
+			corr = (k % accel.normalized()) * accel_fusion_gain;
+		}
+
+		// Gyro bias estimation
+		const float gyro_bias_gain = 0.0f;
+		const float gyro_bias_limit = 0.05f;
+		Vector3f gyro = _imu_sample_delayed.delta_ang / _imu_sample_delayed.delta_ang_dt;
+		float spinRate = gyro.length();
+		if (spinRate < 0.175f) {
+			_mag_cal_gyro_bias -= corr * (gyro_bias_gain * _imu_sample_delayed.delta_ang_dt);
+
+			for (int i = 0; i < 3; i++) {
+				_mag_cal_gyro_bias(i) = math::constrain(_mag_cal_gyro_bias(i), -gyro_bias_limit, gyro_bias_limit);
+			}
+		}
+
+		Vector3f rates = gyro - _mag_cal_gyro_bias;
+
+		// Feed forward gyro
+		corr += rates;
+
+		// Apply correction to state
+		_mag_cal_quat += _mag_cal_quat.derivative1(corr) * _imu_sample_delayed.delta_ang_dt;
+
+		// Normalize quaternion
+		_mag_cal_quat.normalize();
+
+	}
+}
+
+void Ekf::processMagCal()
 {
 	if (_mag_cal_complete) {
 		return;
@@ -57,21 +152,20 @@ void Ekf::fuseMagCal()
 		float yaw_rate;
 		if (_imu_sample_delayed.delta_ang_dt > 0.0001f) {
 		// apply imu bias corrections to sensor data
-			Vector3f corrected_delta_ang = _imu_sample_delayed.delta_ang - _state.gyro_bias;
-
-			yaw_rate = _R_to_earth(2,0) * corrected_delta_ang(0)
-					+ _R_to_earth(2,1) * corrected_delta_ang(1)
-					+ _R_to_earth(2,2) * corrected_delta_ang(2);
+			Vector3f corrected_delta_ang = _imu_sample_delayed.delta_ang - _mag_cal_gyro_bias * _imu_sample_delayed.delta_ang_dt;
+			Dcmf Teb(_mag_cal_quat);
+			yaw_rate = Teb(2,0) * corrected_delta_ang(0)
+					+ Teb(2,1) * corrected_delta_ang(1)
+					+ Teb(2,2) * corrected_delta_ang(2);
 			yaw_rate = yaw_rate / _imu_sample_delayed.delta_ang_dt;
 
-			bool tilt_ok = _R_to_earth(2,2) > cosf(math::radians(45.0f));
+			bool tilt_ok = Teb(2,2) > cosf(math::radians(45.0f));
 
 			if (!_mag_cal_sampling_active && fabsf(yaw_rate) > math::radians(10.0f) && tilt_ok) {
 				_mag_cal_sampling_active = true;
 			} else if (_mag_cal_sampling_active && (fabsf(yaw_rate) < math::radians(5.0f) || !tilt_ok)) {
 				_mag_cal_sampling_active = false;
 			}
-
 		} else {
 			// invalid dt so can't proceed
 			return;
@@ -84,7 +178,7 @@ void Ekf::fuseMagCal()
 		}
 
 		// limit to run once per 8 degrees of yaw rotation and check for reversal of rotation
-		Eulerf euler321(_state.quat_nominal);
+		Eulerf euler321(_mag_cal_quat);
 		float yaw_delta = euler321(2) - _mag_bias_ekf_yaw_last;
 		if (yaw_delta > M_PI_F) {
 			yaw_delta -= M_TWOPI_F;
@@ -123,7 +217,6 @@ void Ekf::fuseMagCal()
 			_mag_cal_sample_time_us = _imu_sample_delayed.time_us;
 
 			return;
-
 		}
 
 		/*
@@ -160,7 +253,7 @@ void Ekf::fuseMagCal()
 		}
 
 		_mag_cal_fit_data[_mag_sample_index].mag_data = _mag_sample_delayed.mag;
-		_mag_cal_fit_data[_mag_sample_index].quaternion = _state.quat_nominal;
+		_mag_cal_fit_data[_mag_sample_index].quaternion = _mag_cal_quat;
 		_mag_cal_fit_data[_mag_sample_index].time_step = time_delta_sec;
 		_mag_cal_sample_time_us = _imu_sample_delayed.time_us;
 		_mag_sample_index++;

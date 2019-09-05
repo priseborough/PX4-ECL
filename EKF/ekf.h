@@ -723,8 +723,10 @@ private:
 	// Uses sequential fusion of magnetometer measurements for estimation of bias offsets
 	// Uses known earth field
 	// Requires 360 deg yaw rotation perfornmed whebn on-ground
-	void fuseMagCal();
+
+	void processMagCal();
 	Vector3f getGeoMagNED();
+	void calcMagCalQuat();
 
 	struct {
 		Vector3f mag_bias;		// XYZ body franme magnetomer bias (Ga)
@@ -750,5 +752,7 @@ private:
 	int8_t _mag_cal_direction{0};		///< used to remember the direction of yaw rotation 1=CW, -1=CCW
 	Vector3f _mag_field_EF;			///< magnetic field in earth frame used by the calibrator after application of yaw rotation to match vehicle assumed zero yaw at start (Ga)
 	uint8_t _retry_count{0};		///< loop counter used to control how many times we rotate the earth field and re-start the EKF processing if the previous attempt failed to converge
-
+	Quatf _mag_cal_quat;			///< quaternion describing rotation from body to earth frame and calculated using only IMU data.
+	Vector3f _mag_cal_gyro_bias;		///< gyro bias learned and used by the quaternion calculation
+	bool _mag_cal_quat_initialised{false};	///< true when calibrator quaternion has been aligned
 };

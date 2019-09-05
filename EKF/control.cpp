@@ -1623,7 +1623,7 @@ void Ekf::controlMagFusion()
 
 		// run mag calibration
 		if (user_selected) {
-			fuseMagCal();
+			processMagCal();
 		}
 
 		// If magnetometer use has been inhibited continuously then a yaw reset is required for a valid heading

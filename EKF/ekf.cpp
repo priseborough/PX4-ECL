@@ -113,6 +113,9 @@ bool Ekf::update()
 	// Only run the filter if IMU data in the buffer has been updated
 	if (_imu_updated) {
 
+		// run the AHRS calculation for the mag calibrator
+		calcMagCalQuat();
+
 		// perform state and covariance prediction for the main filter
 		predictState();
 		predictCovariance();
