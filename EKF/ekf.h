@@ -724,9 +724,11 @@ private:
 	// Uses known earth field
 	// Requires 360 deg yaw rotation perfornmed whebn on-ground
 
-	void processMagCal();
+	void runMagCal();
+	void sampleDataMagCal();
+	void processDataMagCal();
 	Vector3f getGeoMagNED();
-	void calcMagCalQuat();
+	void calcQuatMagCal();
 
 	struct {
 		Vector3f mag_bias;		// XYZ body franme magnetomer bias (Ga)
@@ -748,6 +750,7 @@ private:
 	uint8_t _mag_sample_index{0};		///< index that increments with each new data point is stored for processing
 	uint8_t _mag_cal_iteration_index{0};	///< loop counter used to control how many many timnes the calibration EKF loops through the data set
 	float _mag_cal_residual[3];		///< mag calibration residuals resulting from previous pass of calibration EKF through the stored data (Ga)
+	bool _mag_cal_sampling_complete{false};	///< true when sampling is complete processing of stored data can commence.
 	bool _mag_cal_complete{false};		///< true when processing of the current stored data is complete
 	int8_t _mag_cal_direction{0};		///< used to remember the direction of yaw rotation 1=CW, -1=CCW
 	Vector3f _mag_field_EF;			///< magnetic field in earth frame used by the calibrator after application of yaw rotation to match vehicle assumed zero yaw at start (Ga)
@@ -755,4 +758,6 @@ private:
 	Quatf _mag_cal_quat;			///< quaternion describing rotation from body to earth frame and calculated using only IMU data.
 	Vector3f _mag_cal_gyro_bias;		///< gyro bias learned and used by the quaternion calculation
 	bool _mag_cal_quat_initialised{false};	///< true when calibrator quaternion has been aligned
+	const float _mag_cal_nsamples{36};	///< number of samples used for calibration.
+	bool _restart_sampling{false};		///< true when the sampling and processing should be restarted
 };

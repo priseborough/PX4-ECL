@@ -1621,11 +1621,6 @@ void Ekf::controlMagFusion()
 			_mag_use_not_inhibit_us = _imu_sample_delayed.time_us;
 		}
 
-		// run mag calibration
-		if (user_selected) {
-			processMagCal();
-		}
-
 		// If magnetometer use has been inhibited continuously then a yaw reset is required for a valid heading
 		if (uint32_t(_imu_sample_delayed.time_us - _mag_use_not_inhibit_us) > (uint32_t)5e6) {
 			_mag_inhibit_yaw_reset_req = true;
