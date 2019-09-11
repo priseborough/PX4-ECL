@@ -391,8 +391,9 @@ void Ekf::controlExternalVisionFusion()
 		}
 
 		// Fuse available NED position data into the main filter
-		if (_fuse_height || _fuse_pos) {
+		if (_fuse_height || _fuse_pos || _fuse_hor_vel || _fuse_vert_vel) {
 			fuseVelPosHeight();
+			_fuse_vert_vel = _fuse_hor_vel = false;
 			_fuse_pos = _fuse_height = false;
 			_fuse_hpos_as_odom = false;
 
