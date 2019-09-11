@@ -368,12 +368,12 @@ void Ekf::controlExternalVisionFusion()
 				_vel_pos_innov[2] = _state.vel(2) - velNED_rotated(0);
 			}
 
-			// correct position and height for offset relative to IMU
+			// correct velocity for offset relative to IMU
+			Vector3f ang_rate = _imu_sample_delayed.delta_ang * (1.0f / _imu_sample_delayed.delta_ang_dt);
 			Vector3f pos_offset_body = _params.ev_pos_body - _params.imu_pos_body;
-			Vector3f pos_offset_earth = _R_to_earth * pos_offset_body;
-			_ev_sample_delayed.posNED(0) -= pos_offset_earth(0);
-			_ev_sample_delayed.posNED(1) -= pos_offset_earth(1);
-			_ev_sample_delayed.posNED(2) -= pos_offset_earth(2);
+			Vector3f vel_offset_body = cross_product(ang_rate, pos_offset_body);
+			Vector3f vel_offset_earth = _R_to_earth * vel_offset_body;
+			_ev_sample_delayed.velNED -= vel_offset_earth;
 
 			// check if we have been deadreckoning too long
 			if ((_time_last_imu - _time_last_vel_fuse) > _params.reset_timeout_max) {
