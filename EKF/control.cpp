@@ -192,7 +192,7 @@ void Ekf::controlExternalVisionFusion()
 				}
 
 				// turn on use of external vision measurements for velocity
-				if (_params.fusion_mode & MASK_USE_EVPOS) {
+				if (_params.fusion_mode & MASK_USE_EVVEL) {
 					_control_status.flags.ev_vel = true;
 					ECL_INFO("EKF commencing external vision velocity fusion");
 				}
