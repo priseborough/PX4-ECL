@@ -264,6 +264,24 @@ public:
 	// set minimum continuous period without GPS fail required to mark a healthy GPS status
 	void set_min_required_gps_health_time(uint32_t time_us) { _min_gps_health_time_us = time_us; }
 
+	// get solution data for the EKF-GSF emergency yaw esitmator
+	void getDataEKFGSF(float *yaw_composite, float yaw[N_MODELS_EKFGSF], float innov_VN[N_MODELS_EKFGSF], float innov_VE[N_MODELS_EKFGSF], float weight[N_MODELS_EKFGSF]);
+
+	// gets data which to be logged and used for EKF-GSF development replay
+	// returns false when no data available
+	bool get_algo_test_data(float delAng[3], // delta angle from IMU (rad)
+				float *delAngDt, // delta angle integration time (sec)
+				float delVel[3], // delta velocity from IMU (m/s)
+				float *delVelDt, // delta velocity integration time (sec)
+				float vel[3], // NED velocity measurement (m/s)
+				float *velErr, // 1-sigma velocity measurement uncertainty (m/s)
+				bool *fuse_vel, // true when velociy measurement has been updated
+				float quat[4]); // reference quaternion from EKF
+
+	// request the EKF reset the yaw to the estimate from the internal EKF-GSF filter
+	// argment should be incremented only when a new reset is required
+	void request_ekfgsf_yaw_reset(uint8_t counter);
+
 private:
 
 	static constexpr uint8_t _k_num_states{24};		///< number of EKF states
@@ -719,4 +737,43 @@ private:
 	// Ref: https://en.wikipedia.org/wiki/Kahan_summation_algorithm
 	float kahanSummation(float sum_previous, float input, float &accumulator) const;
 
+	// Declarations for a EKF-GSF estimator used to provide a backup estimate of vehicle yaw
+	struct _ahrs_ekf_gsf_struct{
+		Quatf quat;			///< quaternion describing rotation from body to earth frame and calculated using only IMU data.
+		Dcmf R;				///< matrix that rotates avector from body to earth frame
+		Vector3f gyro_bias;		///< gyro bias learned and used by the quaternion calculation
+		bool quat_initialised{false};	///< true when calibrator quaternion has been aligned
+		float accel_FR[2] {};		///< front-right acceleration vector in a horizontal plane (m/s/s)
+		float yaw_rate = 0;		///< vertical component of bias compensated gyro rate (rad/s).
+		float vel_NE[2] {};		///< NE velocity vector from last GPS measurement (m/s)
+		bool fuse_gps = false;		///< true when GPS should be fused on that frame
+		float accel_dt = 0;		///< time step used when generating _simple_accel_FR data (sec)
+	};
+	_ahrs_ekf_gsf_struct _ahrs_ekf_gsf[N_MODELS_EKFGSF];
+	bool _ahrs_ekf_gsf_tilt_aligned = false;	///< true the initial tilt alignment has been calculated
+	struct _ekf_gsf_struct{
+		float X[3]; // Vel North (m/s),  Vel East (m/s), yaw (rad)
+		float P[3][3]; // covariance matrix
+		float W = 0.0f; // weighting
+		float S[2][2]; // innovation variance
+		float innov[2]; // Velocity N,E innovation (m/s)
+	};
+	_ekf_gsf_struct _ekf_gsf[N_MODELS_EKFGSF];
+	float X_GSF[3] {};
+	bool _ekf_gsf_vel_fuse_started = false;
+	uint64_t _emergency_yaw_reset_time{0};	///< timestamp of last emergency yaw reset (uSec)
+	uint64_t _time_last_on_ground_us{0};	///< last tine we were on the ground (uSec)
+	uint8_t _yaw_extreset_counter{0};	// number of external emergency yaw reset requests
+	bool _do_emergency_yaw_reset{false};	// true when an emergency yaw reset has been requested
+
+	void runEKFGSF();
+	void initialiseEKFGSF();
+	void quatPredictEKFGSF(uint8_t model_index);
+	void alignQuatEKFGSF();
+	void alignQuatYawEKFGSF();
+	void statePredictEKFGSF(uint8_t model_index);
+	void stateUpdateEKFGSF(uint8_t model_index);
+	float gaussianDensityEKFGSF(uint8_t model_index);
+	void makeCovSymEKFGSF(uint8_t model_index);
+	void resetYawToEKFGSF();
 };
