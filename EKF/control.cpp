@@ -358,9 +358,8 @@ void Ekf::controlExternalVisionFusion()
 			}
 
 			// correct velocity for offset relative to IMU
-			const Vector3f ang_rate = _imu_sample_delayed.delta_ang * (1.0f / _imu_sample_delayed.delta_ang_dt);
 			const Vector3f pos_offset_body = _params.ev_pos_body - _params.imu_pos_body;
-			const Vector3f vel_offset_body = ang_rate % pos_offset_body;
+			const Vector3f vel_offset_body = _ang_rate_delayed_raw % pos_offset_body;
 			const Vector3f vel_offset_earth = _R_to_earth * vel_offset_body;
 			vel_aligned -= vel_offset_earth;
 
@@ -648,17 +647,46 @@ void Ekf::controlGpsFusion()
 
 		// handle the case when we now have GPS, but have not been using it for an extended period
 		if (_control_status.flags.gps) {
+			// Handle divergence shortly after takeoff casued by a bad yaw angle. Be faster to reset yaw
+			// in this period because bad yaw induced large GPS innovations will manifest soon after takeoff.
+			if (!_control_status.flags.in_air) {
+				_time_last_on_ground_us = _time_last_imu;
+			}
+			const bool recent_takeoff = (_control_status.flags.in_air && (_time_last_imu - _time_last_on_ground_us) < 30000000);
+			unsigned timeout_limit_us = (recent_takeoff ? _params.EKFGSF_reset_delay : _params.reset_timeout_max);
+
 			// We are relying on aiding to constrain drift so after a specified time
 			// with no aiding we need to do something
-			bool do_reset = isTimedOut(_time_last_hor_pos_fuse, _params.reset_timeout_max)
-					&& isTimedOut(_time_last_delpos_fuse, _params.reset_timeout_max)
-					&& isTimedOut(_time_last_hor_vel_fuse, _params.reset_timeout_max)
-					&& isTimedOut(_time_last_of_fuse, _params.reset_timeout_max);
+			bool do_reset = isTimedOut(_time_last_hor_pos_fuse, timeout_limit_us)
+					&& isTimedOut(_time_last_delpos_fuse, timeout_limit_us)
+					&& isTimedOut(_time_last_hor_vel_fuse, timeout_limit_us)
+					&& isTimedOut(_time_last_of_fuse, timeout_limit_us);
 
 			// We haven't had an absolute position fix for a longer time so need to do something
-			do_reset = do_reset || isTimedOut(_time_last_hor_pos_fuse, 2 * _params.reset_timeout_max);
+			do_reset = do_reset || isTimedOut(_time_last_hor_pos_fuse, 2 * timeout_limit_us);
 
-			if (do_reset) {
+			// A reset to the EKF-GSF estimate can be performed after a recent takeoff which will enable
+			// recovery from a bad magnetomer or field estimate.
+			// This special case reset can also be requested externally.
+			// The minimum time interval between resets to the EKF-GSF estimate must be limited to
+			// allow the EKF-GSF time to improve its estimate if the first reset was not successful.
+			bool reset_yaw_to_EKFGSF = (do_reset || _do_emergency_yaw_reset) && recent_takeoff && ((_imu_sample_delayed.time_us - _emergency_yaw_reset_time) > 5000000);
+
+			if (reset_yaw_to_EKFGSF) {
+				// Attempt to recover using an alternative algorithm for estimating yaw
+				if (_ekf_gsf_vel_fuse_started && (_imu_sample_delayed.time_us - _emergency_yaw_reset_time) > 5000000) {
+					resetYawToEKFGSF();
+					_emergency_yaw_reset_time = _imu_sample_delayed.time_us;
+					_do_emergency_yaw_reset = false;
+				}
+
+				// Reset the timeout counters
+				_time_last_hor_pos_fuse = _time_last_imu;
+				_time_last_delpos_fuse = _time_last_imu;
+				_time_last_hor_vel_fuse = _time_last_imu;
+				_time_last_of_fuse = _time_last_imu;
+
+			} else if (do_reset) {
 				// use GPS velocity data to check and correct yaw angle if a FW vehicle
 				if (_control_status.flags.fixed_wing && _control_status.flags.in_air) {
 					// if flying a fixed wing aircraft, do a complete reset that includes yaw
@@ -687,9 +715,8 @@ void Ekf::controlGpsFusion()
 			Vector3f gps_pos_obs_var;
 
 			// correct velocity for offset relative to IMU
-			const Vector3f ang_rate = _imu_sample_delayed.delta_ang * (1.0f / _imu_sample_delayed.delta_ang_dt);
 			const Vector3f pos_offset_body = _params.gps_pos_body - _params.imu_pos_body;
-			const Vector3f vel_offset_body = ang_rate % pos_offset_body;
+			const Vector3f vel_offset_body = _ang_rate_delayed_raw % pos_offset_body;
 			const Vector3f vel_offset_earth = _R_to_earth * vel_offset_body;
 			_gps_sample_delayed.vel -= vel_offset_earth;
 
