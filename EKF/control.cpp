@@ -684,7 +684,7 @@ void Ekf::controlGpsFusion()
 			// This special case reset can also be requested externally.
 			// The minimum time interval between resets to the EKF-GSF estimate must be limited to
 			// allow the EKF-GSF time to improve its estimate if the first reset was not successful.
-			float reset_yaw_to_EKFGSF = (do_reset || _do_emergency_yaw_reset) && recent_takeoff && ((_imu_sample_delayed.time_us - _emergency_yaw_reset_time) > 5000000);
+			bool reset_yaw_to_EKFGSF = (do_reset || _do_emergency_yaw_reset) && recent_takeoff && ((_imu_sample_delayed.time_us - _emergency_yaw_reset_time) > 5000000);
 
 			if (reset_yaw_to_EKFGSF) {
 				// Attempt to recover using an alternative algorithm for estimating yaw
