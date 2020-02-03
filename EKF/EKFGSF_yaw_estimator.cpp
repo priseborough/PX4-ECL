@@ -66,6 +66,9 @@ void Ekf::quatPredictEKFGSF(uint8_t model_index)
 	// Normalize quaternion
 	_ahrs_ekf_gsf[model_index].quat.normalize();
 
+	// uodate body to earth frame rotation matrix
+	_ahrs_ekf_gsf[model_index].R = quat_to_invrotmat(_ahrs_ekf_gsf[model_index].quat);
+
 }
 
 void Ekf::alignQuatEKFGSF()
