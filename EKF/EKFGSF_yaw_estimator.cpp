@@ -675,10 +675,6 @@ void Ekf::resetYawToEKFGSF()
 	resetVelocity();
 	resetPosition();
 
-	// if the yaw filter has converged incorrectly, then resetting it maximises
-	// the likelihood of a valid yaw for a subsequent reset
-	initialiseEKFGSF();
-
 	ECL_INFO_TIMESTAMPED("EKF emergency yaw reset");
 
 	// stop using the magnetometer in the main EKF otherwise it's fusion could drag the yaw around
