@@ -169,17 +169,16 @@ void Ekf::statePredictEKFGSF(uint8_t model_index)
 	}
 
 	// Calculate the yaw state using a projection onto the horizontal that avoids gimbal lock
-	Dcmf R(_ahrs_ekf_gsf[model_index].quat);
-	if (fabsf(R(2, 0)) < fabsf(R(2, 1))) {
+	if (fabsf(_ahrs_ekf_gsf[model_index].R(2, 0)) < fabsf(_ahrs_ekf_gsf[model_index].R(2, 1))) {
 		// use 321 Tait-Bryan rotation to define yaw state
-		_ekf_gsf[model_index].X[2] = atan2(R(1, 0), R(0, 0));
+		_ekf_gsf[model_index].X[2] = atan2(_ahrs_ekf_gsf[model_index].R(1, 0), _ahrs_ekf_gsf[model_index].R(0, 0));
 	} else {
 		// use 312 Tait-Bryan rotation to define yaw state
-		_ekf_gsf[model_index].X[2] = atan2(-R(0, 1), R(1, 1)); // first rotation (yaw)
+		_ekf_gsf[model_index].X[2] = atan2(-_ahrs_ekf_gsf[model_index].R(0, 1), _ahrs_ekf_gsf[model_index].R(1, 1)); // first rotation (yaw)
 	}
 
 	// calculate delta velocity in a horizontal front-right frame
-	Vector3f del_vel_NED = R * _imu_sample_delayed.delta_vel;
+	Vector3f del_vel_NED = _ahrs_ekf_gsf[model_index].R * _imu_sample_delayed.delta_vel;
 	float dvx =   del_vel_NED(0) * cosf(_ekf_gsf[model_index].X[2]) + del_vel_NED(1) * sinf(_ekf_gsf[model_index].X[2]);
 	float dvy = - del_vel_NED(0) * sinf(_ekf_gsf[model_index].X[2]) + del_vel_NED(1) * cosf(_ekf_gsf[model_index].X[2]);
 
@@ -264,7 +263,12 @@ void Ekf::stateUpdateEKFGSF(uint8_t model_index)
 	float t5 = P00*P11;
 	float t9 = P01*P10;
 	float t6 = t2+t3+t4+t5-t9;
-	float t7 = 1.0f/t6;
+	float t7;
+	if (fabsf(t6) > 1e-6f) {
+		t7 = 1.0f/t6;
+	} else {
+		t7 = 0.0f;
+	}
 	float t8 = P11+velObsVar;
 	float t10 = P00+velObsVar;
 	float K[3][2];
