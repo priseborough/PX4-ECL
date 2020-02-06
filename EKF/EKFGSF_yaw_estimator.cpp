@@ -336,22 +336,61 @@ void Ekf::stateUpdateEKFGSF(uint8_t model_index)
 	_ekf_gsf[model_index].S[0][1] = P01;
 	_ekf_gsf[model_index].S[1][0] = P10;
 
-	float delta_yaw = 0.0f;
 	for (uint8_t obs_index = 0; obs_index < 2; obs_index++) {
 		// apply the state corrections
 		for (unsigned row = 0; row < 3; row++) {
 			_ekf_gsf[model_index].X[row] -= K[row][obs_index] * _ekf_gsf[model_index].innov[obs_index];
 		}
-		delta_yaw -= K[2][obs_index] * _ekf_gsf[model_index].innov[obs_index];
 	}
 
 	// Apply yaw correction to AHRS quaternion
-	Vector3f delta_rot_ef{0.0f,0.0f,delta_yaw}; // rotation delta in earth frame
-	Vector3f delta_rot_bf = _ahrs_ekf_gsf[model_index].R * delta_rot_ef; // rotation delta in body frame
-	Quatf dq;
-	dq.from_axis_angle(delta_rot_bf);
-	_ahrs_ekf_gsf[model_index].quat = _ahrs_ekf_gsf[model_index].quat * dq;
-	_ahrs_ekf_gsf[model_index].quat.normalize();
+	// TODO - This is an  expensive process due to the number of trig operations so a method of doing it more efficiently,
+	// eg storing rotation matrix from the state prediction that doesn't include the yaw rotation should be investigated.
+	// This matrix could then be multiplied with the yaw rotation to obtain the updated R matrix from which the updated
+	// quaternion is calculated
+	if (fabsf(_ahrs_ekf_gsf[model_index].R(2, 0)) < fabsf(_ahrs_ekf_gsf[model_index].R(2, 1))) {
+		// using a 321 Tait-Bryan rotation to define yaw state
+		// take roll pitch yaw from AHRS prediction
+		Eulerf euler321(_ahrs_ekf_gsf[model_index].R);
+
+		// replace the yaw angle using the EKF state estimate
+		euler321(2) = _ekf_gsf[model_index].X[2];
+
+		// update the quaternion used by the AHRS prediction algorithm
+		_ahrs_ekf_gsf[model_index].quat = Quatf(euler321);
+
+	} else {
+		// Calculate the 312 sequence euler angles that rotate from earth to body frame
+		// from the AHRS prediction and replace the yaw angle with the EKF state estimate
+		// See http://www.atacolorado.com/eulersequences.doc
+		Vector3f euler312;
+		euler312(0) = _ekf_gsf[model_index].X[2]; // yaw rotation taken from 3-state EKF
+		euler312(1) = asinf(_ahrs_ekf_gsf[model_index].R(2, 1)); // second rotation (roll) taken from AHRS
+		euler312(2) = atan2f(-_ahrs_ekf_gsf[model_index].R(2, 0), _ahrs_ekf_gsf[model_index].R(2, 2));  // third rotation (pitch) taken from AHRS
+
+		// Calculate the body to earth frame rotation matrix from the euler angles using a 312 rotation sequence
+		float c2 = cosf(euler312(2));
+		float s2 = sinf(euler312(2));
+		float s1 = sinf(euler312(1));
+		float c1 = cosf(euler312(1));
+		float s0 = sinf(euler312(0));
+		float c0 = cosf(euler312(0));
+
+		Dcmf R_to_earth;
+		R_to_earth(0, 0) = c0 * c2 - s0 * s1 * s2;
+		R_to_earth(1, 1) = c0 * c1;
+		R_to_earth(2, 2) = c2 * c1;
+		R_to_earth(0, 1) = -c1 * s0;
+		R_to_earth(0, 2) = s2 * c0 + c2 * s1 * s0;
+		R_to_earth(1, 0) = c2 * s0 + s2 * s1 * c0;
+		R_to_earth(1, 2) = s0 * s2 - s1 * c0 * c2;
+		R_to_earth(2, 0) = -s2 * c1;
+		R_to_earth(2, 1) = s1;
+
+		// update the quaternion used by the AHRS prediction algorithm
+		_ahrs_ekf_gsf[model_index].quat = Quatf(R_to_earth);
+
+	}
 }
 
 void Ekf::initialiseEKFGSF()
