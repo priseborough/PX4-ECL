@@ -784,4 +784,5 @@ private:
 	float gaussianDensityEKFGSF(uint8_t model_index);
 	void makeCovSymEKFGSF(uint8_t model_index);
 	void resetYawToEKFGSF();
+	Dcmf taitBryan312ToRotMat(Vector3f &rot312);
 };

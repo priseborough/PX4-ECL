@@ -381,35 +381,19 @@ void Ekf::stateUpdateEKFGSF(uint8_t model_index)
 	// This matrix could then be multiplied with the yaw rotation to obtain the updated R matrix from which the updated
 	// quaternion is calculated
 	if (_ekf_gsf[model_index].use_312) {
-		// Calculate the 312 sequence euler angles that rotate from earth to body frame
-		// from the AHRS prediction and replace the yaw angle with the EKF state estimate
-		// See http://www.atacolorado.com/eulersequences.doc
-		Vector3f euler312;
-		euler312(0) = _ekf_gsf[model_index].X[2]; // yaw rotation taken from 3-state EKF
-		euler312(1) = asinf(_ahrs_ekf_gsf[model_index].R(2, 1)); // second rotation (roll) taken from AHRS
-		euler312(2) = atan2f(-_ahrs_ekf_gsf[model_index].R(2, 0), _ahrs_ekf_gsf[model_index].R(2, 2));  // third rotation (pitch) taken from AHRS
+		// Calculate the 312 Tait-Bryan rotation sequence that rotates from earth to body frame
+		// We use a 312 sequence as an alternate when there is more pitch tilt than roll tilt
+		// to avoid gimbal lock
+		Vector3f rot312;
+		rot312(0) = _ekf_gsf[model_index].X[2]; // first rotation is about Z and is taken from 3-state EKF
+		rot312(1) = asinf(_ahrs_ekf_gsf[model_index].R(2, 1)); // second rotation is about X and is taken from AHRS
+		rot312(2) = atan2f(-_ahrs_ekf_gsf[model_index].R(2, 0), _ahrs_ekf_gsf[model_index].R(2, 2));  // third rotation is about Y and is taken from AHRS
 
-		// Calculate the body to earth frame rotation matrix from the euler angles using a 312 rotation sequence
-		float c2 = cosf(euler312(2));
-		float s2 = sinf(euler312(2));
-		float s1 = sinf(euler312(1));
-		float c1 = cosf(euler312(1));
-		float s0 = sinf(euler312(0));
-		float c0 = cosf(euler312(0));
-
-		Dcmf R_to_earth;
-		R_to_earth(0, 0) = c0 * c2 - s0 * s1 * s2;
-		R_to_earth(1, 1) = c0 * c1;
-		R_to_earth(2, 2) = c2 * c1;
-		R_to_earth(0, 1) = -c1 * s0;
-		R_to_earth(0, 2) = s2 * c0 + c2 * s1 * s0;
-		R_to_earth(1, 0) = c2 * s0 + s2 * s1 * c0;
-		R_to_earth(1, 2) = s0 * s2 - s1 * c0 * c2;
-		R_to_earth(2, 0) = -s2 * c1;
-		R_to_earth(2, 1) = s1;
+		// Calculate the body to earth frame rotation matrix
+		Dcmf R = taitBryan312ToRotMat(rot312);
 
 		// update the quaternion used by the AHRS prediction algorithm
-		_ahrs_ekf_gsf[model_index].quat = Quatf(R_to_earth);
+		_ahrs_ekf_gsf[model_index].quat = Quatf(R);
 
 	} else {
 		// using a 321 Tait-Bryan rotation to define yaw state
@@ -648,37 +632,20 @@ void Ekf::resetYawToEKFGSF()
 		quat_after_reset = Quatf(euler321);
 
 	} else {
-		// use a 312 sequence
+		// Calculate the 312 Tait-Bryan rotation sequence that rotates from earth to body frame
+		// We use a 312 sequence as an alternate when there is more pitch tilt than roll tilt
+		// to avoid gimbal lock
+		Vector3f rot312;
+		rot312(0) = X_GSF[2]; // first rotation about Z is taken from EKF-GSF
+		rot312(1) = asinf(_R_to_earth(2, 1)); // second rotation about X is taken from main EKF
+		rot312(2) = atan2f(-_R_to_earth(2, 0), _R_to_earth(2, 2));  // third rotation about Y is taken from main EKF
 
-		// Calculate the 312 sequence euler angles that rotate from earth to body frame
-		// See http://www.atacolorado.com/eulersequences.doc
-		Vector3f euler312;
-		euler312(0) = X_GSF[2];
-		euler312(1) = asinf(_R_to_earth(2, 1)); // second rotation (roll)
-		euler312(2) = atan2f(-_R_to_earth(2, 0), _R_to_earth(2, 2));  // third rotation (pitch)
+		// Calculate the body to earth frame rotation matrix
+		Dcmf R = taitBryan312ToRotMat(rot312);
 
-		// Calculate the body to earth frame rotation matrix from the euler angles using a 312 rotation sequence
-		float c2 = cosf(euler312(2));
-		float s2 = sinf(euler312(2));
-		float s1 = sinf(euler312(1));
-		float c1 = cosf(euler312(1));
-		float s0 = sinf(euler312(0));
-		float c0 = cosf(euler312(0));
-
-		Dcmf R_to_earth;
-		R_to_earth(0, 0) = c0 * c2 - s0 * s1 * s2;
-		R_to_earth(1, 1) = c0 * c1;
-		R_to_earth(2, 2) = c2 * c1;
-		R_to_earth(0, 1) = -c1 * s0;
-		R_to_earth(0, 2) = s2 * c0 + c2 * s1 * s0;
-		R_to_earth(1, 0) = c2 * s0 + s2 * s1 * c0;
-		R_to_earth(1, 2) = s0 * s2 - s1 * c0 * c2;
-		R_to_earth(2, 0) = -s2 * c1;
-		R_to_earth(2, 1) = s1;
-
-		// calculate initial quaternion states for the ekf
+		// calculate initial quaternion states for the main EKF
 		// we don't change the output attitude to avoid jumps
-		quat_after_reset = Quatf(R_to_earth);
+		quat_after_reset = Quatf(R);
 	}
 
 	// record the time for the magnetic field alignment event
@@ -780,4 +747,34 @@ void Ekf::request_ekfgsf_yaw_reset(uint8_t counter)
 		_yaw_extreset_counter = counter;
 		_do_emergency_yaw_reset = true;
 	}
+}
+
+// converts Tait-Bryan 312 sequence of rotations from frame 1 to frame 2
+// to the corresponding rotation matrix that rotates from frame 2 to frame 1
+// rot312(0) - First rotation is a RH rotation about the Z axis (rad)
+// rot312(1) - Second rotation is a RH rotation about the X axis (rad)
+// rot312(2) - Third rotation is a RH rotation about the Y axis (rad)
+// See http://www.atacolorado.com/eulersequences.doc
+Dcmf Ekf::taitBryan312ToRotMat(Vector3f &rot312)
+{
+		// Calculate the frame2 to frame 1 rotation matrix from the euler angles using a 312 rotation sequence
+		float c2 = cosf(rot312(2));
+		float s2 = sinf(rot312(2));
+		float s1 = sinf(rot312(1));
+		float c1 = cosf(rot312(1));
+		float s0 = sinf(rot312(0));
+		float c0 = cosf(rot312(0));
+
+		Dcmf R;
+		R(0, 0) = c0 * c2 - s0 * s1 * s2;
+		R(1, 1) = c0 * c1;
+		R(2, 2) = c2 * c1;
+		R(0, 1) = -c1 * s0;
+		R(0, 2) = s2 * c0 + c2 * s1 * s0;
+		R(1, 0) = c2 * s0 + s2 * s1 * c0;
+		R(1, 2) = s0 * s2 - s1 * c0 * c2;
+		R(2, 0) = -s2 * c1;
+		R(2, 1) = s1;
+
+		return R;
 }
