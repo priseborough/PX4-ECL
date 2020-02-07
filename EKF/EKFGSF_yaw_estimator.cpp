@@ -39,10 +39,10 @@ void Ekf::quatPredictEKFGSF(uint8_t model_index)
 	Vector3f accel = _ahrs_accel;
 	if (_ahrs_accel_norm > 0.5f * CONSTANTS_ONE_G && (_ahrs_accel_norm < 1.5f * CONSTANTS_ONE_G || _ahrs_turn_comp_enabled)) {
 		if (_ahrs_turn_comp_enabled) {
-			// turn rate is compinenet of gyro rate about vertical (down) axis
+			// turn rate is component of gyro rate about vertical (down) axis
 			float turn_rate = (_ahrs_ekf_gsf[model_index].R(2,0) * _imu_sample_delayed.delta_ang(0)
 					  + _ahrs_ekf_gsf[model_index].R(2,1) * _imu_sample_delayed.delta_ang(1)
-					  + _ahrs_ekf_gsf[model_index].R(2,2) * _imu_sample_delayed.delta_ang(2)) / _imu_sample_delayed.delta_ang_dt;
+					  + _ahrs_ekf_gsf[model_index].R(2,2) * _imu_sample_delayed.delta_ang(2)) / fmaxf(_imu_sample_delayed.delta_ang_dt, FILTER_UPDATE_PERIOD_S / 4);
 
 			// use measured airspeed to calculate centripetal acceeration if available
 			float centripetal_accel;
@@ -76,7 +76,7 @@ void Ekf::quatPredictEKFGSF(uint8_t model_index)
 
 	// Gyro bias estimation
 	const float gyro_bias_limit = 0.05f;
-	Vector3f gyro = _imu_sample_delayed.delta_ang / _imu_sample_delayed.delta_ang_dt;
+	Vector3f gyro = _imu_sample_delayed.delta_ang / fmaxf(_imu_sample_delayed.delta_ang_dt, FILTER_UPDATE_PERIOD_S / 4);
 	float spinRate = gyro.length();
 	if (spinRate < 0.175f) {
 		_ahrs_ekf_gsf[model_index].gyro_bias -= correction * (_params.EKFGSF_gyro_bias_gain * _imu_sample_delayed.delta_ang_dt);
@@ -454,10 +454,10 @@ void Ekf::initialiseEKFGSF()
 void Ekf::runEKFGSF()
 {
 	// Iniitialise states first time
-	Vector3f accel = _imu_sample_delayed.delta_vel / _imu_sample_delayed.delta_vel_dt;
+	_ahrs_accel = _imu_sample_delayed.delta_vel / fmaxf(_imu_sample_delayed.delta_vel_dt, FILTER_UPDATE_PERIOD_S / 4);
 	if (!_ahrs_ekf_gsf_tilt_aligned) {
 		// check for excessive acceleration.
-		const float accel_norm_sq = accel.norm_squared();
+		const float accel_norm_sq = _ahrs_accel.norm_squared();
 		const float upper_accel_limit = CONSTANTS_ONE_G * 1.1f;
 		const float lower_accel_limit = CONSTANTS_ONE_G * 0.9f;
 		bool ok_to_align = ((accel_norm_sq > lower_accel_limit * lower_accel_limit &&
@@ -471,7 +471,6 @@ void Ekf::runEKFGSF()
 	}
 
 	// calculate common values used by the AHRS prediction models
-	_ahrs_accel = _imu_sample_delayed.delta_vel / _imu_sample_delayed.delta_vel_dt;
 	_ahrs_accel_norm = _ahrs_accel.norm();
 	_ahrs_turn_comp_enabled = _control_status.flags.fixed_wing && _params.EKFGSF_tas_default > FLT_EPSILON;
 	if (_ahrs_accel_norm > CONSTANTS_ONE_G) {
