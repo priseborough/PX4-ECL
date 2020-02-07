@@ -202,9 +202,11 @@ void Ekf::statePredictEKFGSF(uint8_t model_index)
 	if (fabsf(_ahrs_ekf_gsf[model_index].R(2, 0)) < fabsf(_ahrs_ekf_gsf[model_index].R(2, 1))) {
 		// use 321 Tait-Bryan rotation to define yaw state
 		_ekf_gsf[model_index].X[2] = atan2(_ahrs_ekf_gsf[model_index].R(1, 0), _ahrs_ekf_gsf[model_index].R(0, 0));
+		_ekf_gsf[model_index].use_312 = false;
 	} else {
 		// use 312 Tait-Bryan rotation to define yaw state
 		_ekf_gsf[model_index].X[2] = atan2(-_ahrs_ekf_gsf[model_index].R(0, 1), _ahrs_ekf_gsf[model_index].R(1, 1)); // first rotation (yaw)
+		_ekf_gsf[model_index].use_312 = true;
 	}
 
 	// calculate delta velocity in a horizontal front-right frame
@@ -373,23 +375,12 @@ void Ekf::stateUpdateEKFGSF(uint8_t model_index)
 		}
 	}
 
-	// Apply yaw correction to AHRS quaternion
+	// Apply yaw correction to AHRS quaternion sing the same rotation sequence as was used by the prediction step
 	// TODO - This is an  expensive process due to the number of trig operations so a method of doing it more efficiently,
 	// eg storing rotation matrix from the state prediction that doesn't include the yaw rotation should be investigated.
 	// This matrix could then be multiplied with the yaw rotation to obtain the updated R matrix from which the updated
 	// quaternion is calculated
-	if (fabsf(_ahrs_ekf_gsf[model_index].R(2, 0)) < fabsf(_ahrs_ekf_gsf[model_index].R(2, 1))) {
-		// using a 321 Tait-Bryan rotation to define yaw state
-		// take roll pitch yaw from AHRS prediction
-		Eulerf euler321(_ahrs_ekf_gsf[model_index].R);
-
-		// replace the yaw angle using the EKF state estimate
-		euler321(2) = _ekf_gsf[model_index].X[2];
-
-		// update the quaternion used by the AHRS prediction algorithm
-		_ahrs_ekf_gsf[model_index].quat = Quatf(euler321);
-
-	} else {
+	if (_ekf_gsf[model_index].use_312) {
 		// Calculate the 312 sequence euler angles that rotate from earth to body frame
 		// from the AHRS prediction and replace the yaw angle with the EKF state estimate
 		// See http://www.atacolorado.com/eulersequences.doc
@@ -419,6 +410,17 @@ void Ekf::stateUpdateEKFGSF(uint8_t model_index)
 
 		// update the quaternion used by the AHRS prediction algorithm
 		_ahrs_ekf_gsf[model_index].quat = Quatf(R_to_earth);
+
+	} else {
+		// using a 321 Tait-Bryan rotation to define yaw state
+		// take roll pitch yaw from AHRS prediction
+		Eulerf euler321(_ahrs_ekf_gsf[model_index].R);
+
+		// replace the yaw angle using the EKF state estimate
+		euler321(2) = _ekf_gsf[model_index].X[2];
+
+		// update the quaternion used by the AHRS prediction algorithm
+		_ahrs_ekf_gsf[model_index].quat = Quatf(euler321);
 
 	}
 }
