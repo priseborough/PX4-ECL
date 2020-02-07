@@ -40,9 +40,9 @@ void Ekf::quatPredictEKFGSF(uint8_t model_index)
 	if (_ahrs_accel_norm > 0.5f * CONSTANTS_ONE_G && (_ahrs_accel_norm < 1.5f * CONSTANTS_ONE_G || _ahrs_turn_comp_enabled)) {
 		if (_ahrs_turn_comp_enabled) {
 			// turn rate is component of gyro rate about vertical (down) axis
-			float turn_rate = (_ahrs_ekf_gsf[model_index].R(2,0) * _imu_sample_delayed.delta_ang(0)
-					  + _ahrs_ekf_gsf[model_index].R(2,1) * _imu_sample_delayed.delta_ang(1)
-					  + _ahrs_ekf_gsf[model_index].R(2,2) * _imu_sample_delayed.delta_ang(2)) / fmaxf(_imu_sample_delayed.delta_ang_dt, FILTER_UPDATE_PERIOD_S / 4);
+			float turn_rate = _ahrs_ekf_gsf[model_index].R(2,0) * _ang_rate_delayed_raw(0)
+					  + _ahrs_ekf_gsf[model_index].R(2,1) * _ang_rate_delayed_raw(1)
+					  + _ahrs_ekf_gsf[model_index].R(2,2) * _ang_rate_delayed_raw(2);
 
 			// use measured airspeed to calculate centripetal acceeration if available
 			float centripetal_accel;
@@ -76,8 +76,7 @@ void Ekf::quatPredictEKFGSF(uint8_t model_index)
 
 	// Gyro bias estimation
 	const float gyro_bias_limit = 0.05f;
-	Vector3f gyro = _imu_sample_delayed.delta_ang / fmaxf(_imu_sample_delayed.delta_ang_dt, FILTER_UPDATE_PERIOD_S / 4);
-	float spinRate = gyro.length();
+	float spinRate = _ang_rate_delayed_raw.length();
 	if (spinRate < 0.175f) {
 		_ahrs_ekf_gsf[model_index].gyro_bias -= correction * (_params.EKFGSF_gyro_bias_gain * _imu_sample_delayed.delta_ang_dt);
 
@@ -86,7 +85,7 @@ void Ekf::quatPredictEKFGSF(uint8_t model_index)
 		}
 	}
 
-	Vector3f rates = gyro - _ahrs_ekf_gsf[model_index].gyro_bias;
+	Vector3f rates = _ang_rate_delayed_raw - _ahrs_ekf_gsf[model_index].gyro_bias;
 
 	// Feed forward gyro
 	correction += rates;
