@@ -33,14 +33,45 @@ void Ekf::quatPredictEKFGSF(uint8_t model_index)
 		(_ahrs_ekf_gsf[model_index].quat(0) * _ahrs_ekf_gsf[model_index].quat(0) - _ahrs_ekf_gsf[model_index].quat(1) * _ahrs_ekf_gsf[model_index].quat(1) - _ahrs_ekf_gsf[model_index].quat(2) * _ahrs_ekf_gsf[model_index].quat(2) + _ahrs_ekf_gsf[model_index].quat(3) * _ahrs_ekf_gsf[model_index].quat(3))
 	);
 
-	// Perform angular rate correction using accel data only if its norm is close to 1 g (reduces drift when vehicle picked up and moved).
-	float accel_fusion_gain = 0.0f;
-	Vector3f accel = _imu_sample_delayed.delta_vel / _imu_sample_delayed.delta_vel_dt;
-	float accel_norm = accel.norm();
+	// Perform angular rate correction using accel data and reduce correction as accel magnitude moves away from 1 g (reduces drift when vehicle picked up and moved).
+	// During fixed wing flight, compensate for centripetal acceleration assuming coordinated turns and X axis forward
 	Vector3f correction = {};
-	if (accel_norm > 0.5f * CONSTANTS_ONE_G && accel_norm < 1.5f * CONSTANTS_ONE_G) {
-		accel_fusion_gain = _params.EKFGSF_tilt_gain * sq(1.0f - 2.0f * fabsf(accel_norm - CONSTANTS_ONE_G)/CONSTANTS_ONE_G);
-		correction = (k % accel) * accel_fusion_gain / accel_norm;
+	Vector3f accel = _ahrs_accel;
+	if (_ahrs_accel_norm > 0.5f * CONSTANTS_ONE_G && (_ahrs_accel_norm < 1.5f * CONSTANTS_ONE_G || _ahrs_turn_comp_enabled)) {
+		if (_ahrs_turn_comp_enabled) {
+			// turn rate is compinenet of gyro rate about vertical (down) axis
+			float turn_rate = (_ahrs_ekf_gsf[model_index].R(2,0) * _imu_sample_delayed.delta_ang(0)
+					  + _ahrs_ekf_gsf[model_index].R(2,1) * _imu_sample_delayed.delta_ang(1)
+					  + _ahrs_ekf_gsf[model_index].R(2,2) * _imu_sample_delayed.delta_ang(2)) / _imu_sample_delayed.delta_ang_dt;
+
+			// use measured airspeed to calculate centripetal acceeration if available
+			float centripetal_accel;
+			if (_imu_sample_delayed.time_us - _airspeed_sample_delayed.time_us < 1000000) {
+				centripetal_accel = _airspeed_sample_delayed.true_airspeed * turn_rate;
+			} else {
+				centripetal_accel = _params.EKFGSF_tas_default * turn_rate;
+			}
+
+			// project Y body axis onto horizontal and multiply by centripetal acceleration to give estimated
+			// centrietal acceleratoin vector in earth frame due to coordinated turn
+			Vector3f centripetal_accel_vec_ef = {_ahrs_ekf_gsf[model_index].R(0,1), _ahrs_ekf_gsf[model_index].R(1,1), 0.0f};
+			if (_ahrs_ekf_gsf[model_index].R(2,2) > 0.0f) {
+				// vehicle is upright
+				centripetal_accel_vec_ef *= centripetal_accel;
+			} else {
+				// vehicle is inverted
+				centripetal_accel_vec_ef *= - centripetal_accel;
+			}
+
+			// rotate into body frame
+			Vector3f centripetal_accel_vec_bf = _ahrs_ekf_gsf[model_index].R.transpose() * centripetal_accel_vec_ef;
+
+			// correct measured accel for centripetal acceleration
+			accel -= centripetal_accel_vec_bf;
+		}
+
+		correction = (k % accel) * _ahrs_accel_fusion_gain / _ahrs_accel_norm;
+
 	}
 
 	// Gyro bias estimation
@@ -439,11 +470,27 @@ void Ekf::runEKFGSF()
 		return;
 	}
 
+	// calculate common values used by the AHRS prediction models
+	_ahrs_accel = _imu_sample_delayed.delta_vel / _imu_sample_delayed.delta_vel_dt;
+	_ahrs_accel_norm = _ahrs_accel.norm();
+	_ahrs_turn_comp_enabled = _control_status.flags.fixed_wing && _params.EKFGSF_tas_default > FLT_EPSILON;
+	if (_ahrs_accel_norm > CONSTANTS_ONE_G) {
+		if (_ahrs_turn_comp_enabled && _ahrs_accel_norm <= 2.0f * CONSTANTS_ONE_G) {
+			_ahrs_accel_fusion_gain = _params.EKFGSF_tilt_gain * sq(1.0f - (_ahrs_accel_norm - CONSTANTS_ONE_G)/CONSTANTS_ONE_G);
+		} else if (_ahrs_accel_norm <= 1.5f * CONSTANTS_ONE_G) {
+			_ahrs_accel_fusion_gain = _params.EKFGSF_tilt_gain * sq(1.0f - 2.0f * (_ahrs_accel_norm - CONSTANTS_ONE_G)/CONSTANTS_ONE_G);
+		}
+	} else if (_ahrs_accel_norm > 0.5f * CONSTANTS_ONE_G) {
+		_ahrs_accel_fusion_gain = _params.EKFGSF_tilt_gain * sq(1.0f + 2.0f * (_ahrs_accel_norm - CONSTANTS_ONE_G)/CONSTANTS_ONE_G);
+	}
+
+	// AHRS prediction cycle for each model
+	// This always runs
 	for (uint8_t model_index = 0; model_index < N_MODELS_EKFGSF; model_index ++) {
-		// Predicttion cycle for each model
 		statePredictEKFGSF(model_index);
 	}
 
+	// The 3-state EKF models only run when flying to avoid corrupted estimates due to operator handling and GPS interference
 	if (_control_status.flags.gps && _gps_data_ready && _control_status.flags.in_air) {
 		if (!_ekf_gsf_vel_fuse_started) {
 			for (uint8_t model_index = 0; model_index < N_MODELS_EKFGSF; model_index ++) {

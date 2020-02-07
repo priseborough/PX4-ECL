@@ -750,7 +750,12 @@ private:
 		float accel_dt = 0;		///< time step used when generating _simple_accel_FR data (sec)
 	};
 	_ahrs_ekf_gsf_struct _ahrs_ekf_gsf[N_MODELS_EKFGSF];
-	bool _ahrs_ekf_gsf_tilt_aligned = false;	///< true the initial tilt alignment has been calculated
+	bool _ahrs_ekf_gsf_tilt_aligned = false;///< true the initial tilt alignment has been calculated
+	float _ahrs_accel_fusion_gain;		///< gain from accel vector tilt error to rate gyro correction used by AHRS calculation
+	Vector3f _ahrs_accel;			///< measured body frame specific force vector used by AHRS calculation (m/s/s)
+	float _ahrs_accel_norm;			///< length of body frame specific force vector used by AHRS calculation (m/s/s)
+	bool _ahrs_turn_comp_enabled;		///< true when compensation for centripetal acceleration in coordinated turns is being used.
+
 	struct _ekf_gsf_struct{
 		float X[3]; // Vel North (m/s),  Vel East (m/s), yaw (rad)
 		float P[3][3]; // covariance matrix
