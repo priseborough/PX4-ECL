@@ -364,7 +364,7 @@ struct parameters {
 	float EKFGSF_gyro_noise{1.0e-1f}; 	///< yaw rate noise used for covariance prediction (rad/sec)
 	float EKFGSF_accel_noise{2.0f};		///< horizontal accel noise used for covariance prediction (m/sec**2)
 	float EKFGSF_tilt_gain{0.4f};		///< gain from tilt error to gyro correction for complementary filter (1/sec)
-	float EKFGSF_gyro_bias_gain{0.01f};	///< gain applied to integral of gyro correction for complementary filter (1/sec)
+	float EKFGSF_gyro_bias_gain{0.04f};	///< gain applied to integral of gyro correction for complementary filter (1/sec)
 	float EKFGSF_weight_min{0.0f};		///< minimum value of an individual model weighting
 	float EKFGSF_tas_default{15.0f};	///< default airspeed value assumed during fixed wing flight if no airspeed measurement available (m/s)
 };
