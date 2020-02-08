@@ -299,7 +299,8 @@ void Ekf::stateUpdateEKFGSF(uint8_t model_index)
 	if (fabsf(t6) > 1e-6f) {
 		t7 = 1.0f/t6;
 	} else {
-		t7 = 0.0f;
+		// skip this fusion step
+		return;
 	}
 	float t8 = P11+velObsVar;
 	float t10 = P00+velObsVar;
