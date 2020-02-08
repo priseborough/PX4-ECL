@@ -663,10 +663,10 @@ void Ekf::controlGpsFusion()
 
 		// handle the case when we now have GPS, but have not been using it for an extended period
 		if (_control_status.flags.gps) {
-			// handle divergence shortly after takeoff casued by a bad yaw angle
-			// be faster to reset yaw inthis period becasue bad yaw is more likely
-			const bool recent_takeoff = ((_imu_sample_delayed.time_us - _time_last_on_ground_us) < 30000000);
-			unsigned timeout_limit_us = (recent_takeoff ? _params.reset_timeout_max/2 : _params.reset_timeout_max);
+			// Handle divergence shortly after takeoff casued by a bad yaw angle. Be faster to reset yaw
+			// in this period because bad yaw induced large GPS innovations will manifest soon after takeoff.
+			const bool recent_takeoff = (_control_status.flags.in_air && (_imu_sample_delayed.time_us - _time_last_on_ground_us) < 30000000);
+			unsigned timeout_limit_us = (recent_takeoff ? _params.EKFGSF_reset_delay : _params.reset_timeout_max);
 
 			// We are relying on aiding to constrain drift so after a specified time
 			// with no aiding we need to do something
