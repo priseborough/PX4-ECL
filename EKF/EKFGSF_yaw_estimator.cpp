@@ -295,8 +295,9 @@ void Ekf::stateUpdateEKFGSF(uint8_t model_index)
 	_ekf_gsf[model_index].S[0][1] = P01;
 	_ekf_gsf[model_index].S[1][0] = P10;
 
-	// Perform a chi-square innovaton consistency test and clip magnitude of innovations to 5-sigma
+	// Perform a chi-square innovaton consistency test and calculate a compression scale factor that limits the magnitude of innovations to 5-sigma
 	float S_det_inv = (_ekf_gsf[model_index].S[0][0]*_ekf_gsf[model_index].S[1][1] - _ekf_gsf[model_index].S[0][1]*_ekf_gsf[model_index].S[1][0]);
+	float innov_comp_scale_factor = 1.0f;
 	if (fabsf(S_det_inv) > 1E-6f) {
 		// Calculate elements for innvoation covariance inverse matrix assuming symmetry
 		S_det_inv = 1.0f / S_det_inv;
@@ -310,9 +311,7 @@ void Ekf::stateUpdateEKFGSF(uint8_t model_index)
 		// If the test ratio is greater than 25 (5 Sigma) then reduce the length of the innovation vector to clip it at 5-Sigma
 		// This protects from large measurement spikes
 		if (test_ratio > 25.0f) {
-			float scale_factor = sqrtf(25.0f / test_ratio);
-			_ekf_gsf[model_index].innov[0] *= scale_factor;
-			_ekf_gsf[model_index].innov[1] *= scale_factor;
+			innov_comp_scale_factor = sqrtf(25.0f / test_ratio);
 		}
 	} else {
 		// skip this fusion step because calculation is badly conditioned
@@ -397,9 +396,9 @@ void Ekf::stateUpdateEKFGSF(uint8_t model_index)
 	makeCovSymEKFGSF(model_index);
 
 	for (uint8_t obs_index = 0; obs_index < 2; obs_index++) {
-		// apply the state corrections
+		// apply the state corrections including the compression scale factor
 		for (unsigned row = 0; row < 3; row++) {
-			_ekf_gsf[model_index].X[row] -= K[row][obs_index] * _ekf_gsf[model_index].innov[obs_index];
+			_ekf_gsf[model_index].X[row] -= K[row][obs_index] * _ekf_gsf[model_index].innov[obs_index] * innov_comp_scale_factor;
 		}
 	}
 
