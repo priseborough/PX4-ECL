@@ -270,8 +270,10 @@ void Ekf::statePredictEKFGSF(uint8_t model_index)
 // Update EKF states and covariance for specified model index using velocity measurement
 void Ekf::stateUpdateEKFGSF(uint8_t model_index)
 {
-	// fuse NE velocity observations
+	// set observation variance from accuracy estiate supplied by GPS and apply a sanity check minimum
 	float velObsVar = sq(fmaxf(_gps_sample_delayed.sacc, _params.gps_vel_noise));
+
+	// calculate velocity observation innovations
 	_ekf_gsf[model_index].innov[0] = _ekf_gsf[model_index].X[0] - _gps_sample_delayed.vel(0);
 	_ekf_gsf[model_index].innov[1] = _ekf_gsf[model_index].X[1] - _gps_sample_delayed.vel(1);
 
@@ -285,6 +287,36 @@ void Ekf::stateUpdateEKFGSF(uint8_t model_index)
 	float P20 = _ekf_gsf[model_index].P[2][0];
 	float P21 = _ekf_gsf[model_index].P[2][1];
 	float P22 = _ekf_gsf[model_index].P[2][2];
+
+	// calculate innovation variance
+	_ekf_gsf[model_index].S[0][0] = P00 + velObsVar;
+	_ekf_gsf[model_index].S[1][1] = P11 + velObsVar;
+	_ekf_gsf[model_index].S[0][1] = P01;
+	_ekf_gsf[model_index].S[1][0] = P10;
+
+	// Perform a chi-square innovaton consistency test and clip magnitude of innovations to 5-sigma
+	float S_det_inv = (_ekf_gsf[model_index].S[0][0]*_ekf_gsf[model_index].S[1][1] - _ekf_gsf[model_index].S[0][1]*_ekf_gsf[model_index].S[1][0]);
+	if (fabsf(S_det_inv) > 1E-6f) {
+		// Calculate elements for innvoation covariance inverse matrix assuming symmetry
+		S_det_inv = 1.0f / S_det_inv;
+		float S_inv_NN = _ekf_gsf[model_index].S[1][1] * S_det_inv;
+		float S_inv_EE = _ekf_gsf[model_index].S[0][0] * S_det_inv;
+		float S_inv_NE = _ekf_gsf[model_index].S[0][1] * S_det_inv;
+
+		// The following expression was derived symbolically from test ratio = transpose(innovation) * inverse(innovation variance) * innovation = [1x2] * [2,2] * [2,1] = [1,1]
+		float test_ratio = _ekf_gsf[model_index].innov[0]*(_ekf_gsf[model_index].innov[0]*S_inv_NN + _ekf_gsf[model_index].innov[1]*S_inv_NE) + _ekf_gsf[model_index].innov[1]*(_ekf_gsf[model_index].innov[0]*S_inv_NE + _ekf_gsf[model_index].innov[1]*S_inv_EE);
+
+		// If the test ratio is greater than 25 (5 Sigma) then reduce the length of the innovation vector to clip it at 5-Sigma
+		// This protects from large measurement spikes
+		if (test_ratio > 25.0f) {
+			float scale_factor = sqrtf(25.0f / test_ratio);
+			_ekf_gsf[model_index].innov[0] *= scale_factor;
+			_ekf_gsf[model_index].innov[1] *= scale_factor;
+		}
+	} else {
+		// skip this fusion step because calculation is badly conditioned
+		return;
+	}
 
 	// calculate Kalman gain K  and covariance matrix P
 	// autocode from https://github.com/priseborough/3_state_filter/blob/flightLogReplay-wip/calcK.txt
@@ -362,12 +394,6 @@ void Ekf::stateUpdateEKFGSF(uint8_t model_index)
 
 	// force symmetry
 	makeCovSymEKFGSF(model_index);
-
-	// calculate innovation variance
-	_ekf_gsf[model_index].S[0][0] = P00 + velObsVar;
-	_ekf_gsf[model_index].S[1][1] = P11 + velObsVar;
-	_ekf_gsf[model_index].S[0][1] = P01;
-	_ekf_gsf[model_index].S[1][0] = P10;
 
 	for (uint8_t obs_index = 0; obs_index < 2; obs_index++) {
 		// apply the state corrections
