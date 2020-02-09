@@ -150,34 +150,14 @@ void Ekf::alignQuatYawEKFGSF()
 			_ahrs_ekf_gsf[model_index].R = Dcmf(_ahrs_ekf_gsf[model_index].quat);
 
 		} else {
-			// Calculate the 312 Tait-Bryan sequence euler angles that rotate from earth to body frame
-			// PX4 math library does not support this so are using equations from
-			// http://www.atacolorado.com/eulersequences.doc
-			Vector3f euler312;
-			euler312(0) = atan2f(-_ahrs_ekf_gsf[model_index].R(0, 1), _ahrs_ekf_gsf[model_index].R(1, 1));  // first rotation (yaw)
-			euler312(1) = asinf(_ahrs_ekf_gsf[model_index].R(2, 1)); // second rotation (roll)
-			euler312(2) = atan2f(-_ahrs_ekf_gsf[model_index].R(2, 0), _ahrs_ekf_gsf[model_index].R(2, 2));  // third rotation (pitch)
+			// Calculate the 312 Tait-Bryan rotation sequence that rotates from earth to body frame
+			Vector3f rot312;
+			rot312(0) = wrap_pi(_ekf_gsf[model_index].X[2]); // first rotation (yaw) taken from EKF model state
+			rot312(1) = asinf(_ahrs_ekf_gsf[model_index].R(2, 1)); // second rotation (roll)
+			rot312(2) = atan2f(-_ahrs_ekf_gsf[model_index].R(2, 0), _ahrs_ekf_gsf[model_index].R(2, 2));  // third rotation (pitch)
 
-			// set the yaw angle
-			euler312(0) = wrap_pi(_ekf_gsf[model_index].X[2]);
-
-			// Calculate the body to earth frame rotation matrix from the corrected euler angles
-			float c2 = cosf(euler312(2));
-			float s2 = sinf(euler312(2));
-			float s1 = sinf(euler312(1));
-			float c1 = cosf(euler312(1));
-			float s0 = sinf(euler312(0));
-			float c0 = cosf(euler312(0));
-
-			_ahrs_ekf_gsf[model_index].R(0, 0) = c0 * c2 - s0 * s1 * s2;
-			_ahrs_ekf_gsf[model_index].R(1, 1) = c0 * c1;
-			_ahrs_ekf_gsf[model_index].R(2, 2) = c2 * c1;
-			_ahrs_ekf_gsf[model_index].R(0, 1) = -c1 * s0;
-			_ahrs_ekf_gsf[model_index].R(0, 2) = s2 * c0 + c2 * s1 * s0;
-			_ahrs_ekf_gsf[model_index].R(1, 0) = c2 * s0 + s2 * s1 * c0;
-			_ahrs_ekf_gsf[model_index].R(1, 2) = s0 * s2 - s1 * c0 * c2;
-			_ahrs_ekf_gsf[model_index].R(2, 0) = -s2 * c1;
-			_ahrs_ekf_gsf[model_index].R(2, 1) = s1;
+			// Calculate the body to earth frame rotation matrix
+			_ahrs_ekf_gsf[model_index].R = taitBryan312ToRotMat(rot312);
 
 			// update the quaternion
 			_ahrs_ekf_gsf[model_index].quat = Quatf(_ahrs_ekf_gsf[model_index].R);
