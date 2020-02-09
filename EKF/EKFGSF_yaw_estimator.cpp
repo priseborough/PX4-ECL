@@ -363,7 +363,7 @@ void Ekf::stateUpdateEKFGSF(uint8_t model_index)
 	// force symmetry
 	makeCovSymEKFGSF(model_index);
 
-	// calculatei innovation variance
+	// calculate innovation variance
 	_ekf_gsf[model_index].S[0][0] = P00 + velObsVar;
 	_ekf_gsf[model_index].S[1][1] = P11 + velObsVar;
 	_ekf_gsf[model_index].S[0][1] = P01;
@@ -758,7 +758,7 @@ void Ekf::request_ekfgsf_yaw_reset(uint8_t counter)
 // See http://www.atacolorado.com/eulersequences.doc
 Dcmf Ekf::taitBryan312ToRotMat(Vector3f &rot312)
 {
-		// Calculate the frame2 to frame 1 rotation matrix from the euler angles using a 312 rotation sequence
+		// Calculate the frame2 to frame 1 rotation matrix from a 312 rotation sequence
 		float c2 = cosf(rot312(2));
 		float s2 = sinf(rot312(2));
 		float s1 = sinf(rot312(1));
