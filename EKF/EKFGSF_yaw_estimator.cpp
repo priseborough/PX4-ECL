@@ -103,28 +103,33 @@ void Ekf::quatPredictEKFGSF(uint8_t model_index)
 
 void Ekf::alignQuatEKFGSF()
 {
-	// The roll and pitch or tilt is obtained from the gravity vector and will be the same for all models
-	// so only need to calculate this once
+	// Rotation matrix is constructed directly from acceleration measurement and will be the same for
+	// all models so only need to calculate it once. Assumptions are:
+	// 1) Yaw angle is zero - yaw is aligned later for each model when velocity fusion commences.
+	// 2) The vehicle is not accelerating so all of the measured acceleration is due to gravity.
 
-	// Rotation matrix can be easily constructed from acceleration
-	// assuming zero yaw
-	// 'k' is Earth Z axis (Down) unit vector in body frame
-	Vector3f k_init = -_imu_sample_delayed.delta_vel;
-	k_init.normalize();
+	// Calcuate earth frame Down axis unit vector rotated into body frame
+	Vector3f down_in_bf = -_imu_sample_delayed.delta_vel;
+	down_in_bf.normalize();
 
-	// 'i' is Earth X axis (North) unit vector in body frame, orthogonal with 'k'
-	Vector3f temp(1.0f,0.0f,0.0f);
-	Vector3f i_init = (temp - k_init * (temp * k_init));
-	i_init.normalize();
+	// Calculate earth frame North axis unit vector rotated into body frame, orthogonal to 'down_in_bf'
+	// * operator is overloaded to provide a dot product
+	Vector3f i_vec_bf(1.0f,0.0f,0.0f);
+	Vector3f north_in_bf = i_vec_bf - down_in_bf * (i_vec_bf * down_in_bf);
+	north_in_bf.normalize();
 
-	// 'j' is Earth Y axis (East) unit vector in body frame, orthogonal with 'k' and 'i'
-	Vector3f j_init = k_init % i_init;
+	// Calculate earth frame East axis unit vector rotated into body frame, orthogonal to 'down_in_bf' and 'north_in_bf'
+	// % operator is overloaded to provide a cross product
+	Vector3f east_in_bf = down_in_bf % north_in_bf;
 
-	// Fill rotation matrix
+	// Each column in a rotation matrix from earth frame to body frame represents the projection of the
+	// corresponding earth frame unit vector rotated into the body frame, eg 'north_in_bf' would be the first column.
+	// We need the rotation matrix from body frame to earth frame so the earth frame unit vectors rotated into body
+	// frame are copied into corresponding rows instead.
 	Dcmf R;
-	R.setRow(0, i_init);
-	R.setRow(1, j_init);
-	R.setRow(2, k_init);
+	R.setRow(0, north_in_bf);
+	R.setRow(1, east_in_bf);
+	R.setRow(2, down_in_bf);
 
 	// Convert to quaternion
 	for (uint8_t model_index = 0; model_index < N_MODELS_EKFGSF; model_index++) {
