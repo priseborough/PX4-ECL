@@ -44,7 +44,7 @@ void Ekf::quatPredictEKFGSF(uint8_t model_index)
 					  + _ahrs_ekf_gsf[model_index].R(2,1) * _ang_rate_delayed_raw(1)
 					  + _ahrs_ekf_gsf[model_index].R(2,2) * _ang_rate_delayed_raw(2);
 
-			// use measured airspeed to calculate centripetal acceeration if available
+			// use measured airspeed to calculate centripetal acceleration if available
 			float centripetal_accel;
 			if (_imu_sample_delayed.time_us - _airspeed_sample_delayed.time_us < 1000000) {
 				centripetal_accel = _airspeed_sample_delayed.true_airspeed * turn_rate;
@@ -53,7 +53,7 @@ void Ekf::quatPredictEKFGSF(uint8_t model_index)
 			}
 
 			// project Y body axis onto horizontal and multiply by centripetal acceleration to give estimated
-			// centrietal acceleratoin vector in earth frame due to coordinated turn
+			// centripetal acceleration vector in earth frame due to coordinated turn
 			Vector3f centripetal_accel_vec_ef = {_ahrs_ekf_gsf[model_index].R(0,1), _ahrs_ekf_gsf[model_index].R(1,1), 0.0f};
 			if (_ahrs_ekf_gsf[model_index].R(2,2) > 0.0f) {
 				// vehicle is upright
@@ -108,7 +108,7 @@ void Ekf::alignQuatEKFGSF()
 	// 1) Yaw angle is zero - yaw is aligned later for each model when velocity fusion commences.
 	// 2) The vehicle is not accelerating so all of the measured acceleration is due to gravity.
 
-	// Calcuate earth frame Down axis unit vector rotated into body frame
+	// Calculate earth frame Down axis unit vector rotated into body frame
 	Vector3f down_in_bf = -_imu_sample_delayed.delta_vel;
 	down_in_bf.normalize();
 
@@ -199,7 +199,7 @@ void Ekf::statePredictEKFGSF(uint8_t model_index)
 	float dvx =   del_vel_NED(0) * cosf(_ekf_gsf[model_index].X[2]) + del_vel_NED(1) * sinf(_ekf_gsf[model_index].X[2]);
 	float dvy = - del_vel_NED(0) * sinf(_ekf_gsf[model_index].X[2]) + del_vel_NED(1) * cosf(_ekf_gsf[model_index].X[2]);
 
-	// sum delta velocties in earth frame:
+	// sum delta velocities in earth frame:
 	_ekf_gsf[model_index].X[0] += del_vel_NED(0);
 	_ekf_gsf[model_index].X[1] += del_vel_NED(1);
 
@@ -256,7 +256,7 @@ void Ekf::statePredictEKFGSF(uint8_t model_index)
 // Update EKF states and covariance for specified model index using velocity measurement
 void Ekf::stateUpdateEKFGSF(uint8_t model_index)
 {
-	// set observation variance from accuracy estiate supplied by GPS and apply a sanity check minimum
+	// set observation variance from accuracy estimate supplied by GPS and apply a sanity check minimum
 	float velObsVar = sq(fmaxf(_gps_sample_delayed.sacc, _params.gps_vel_noise));
 
 	// calculate velocity observation innovations
@@ -280,11 +280,11 @@ void Ekf::stateUpdateEKFGSF(uint8_t model_index)
 	_ekf_gsf[model_index].S[0][1] = P01;
 	_ekf_gsf[model_index].S[1][0] = P10;
 
-	// Perform a chi-square innovaton consistency test and calculate a compression scale factor that limits the magnitude of innovations to 5-sigma
+	// Perform a chi-square innovation consistency test and calculate a compression scale factor that limits the magnitude of innovations to 5-sigma
 	float S_det_inv = (_ekf_gsf[model_index].S[0][0]*_ekf_gsf[model_index].S[1][1] - _ekf_gsf[model_index].S[0][1]*_ekf_gsf[model_index].S[1][0]);
 	float innov_comp_scale_factor = 1.0f;
 	if (fabsf(S_det_inv) > 1E-6f) {
-		// Calculate elements for innvoation covariance inverse matrix assuming symmetry
+		// Calculate elements for innovation covariance inverse matrix assuming symmetry
 		S_det_inv = 1.0f / S_det_inv;
 		float S_inv_NN = _ekf_gsf[model_index].S[1][1] * S_det_inv;
 		float S_inv_EE = _ekf_gsf[model_index].S[0][0] * S_det_inv;
@@ -429,7 +429,7 @@ void Ekf::initialiseEKFGSF()
 		// evenly space initial yaw estimates in the region between +-Pi
 		_ekf_gsf[model_index].X[2] = -M_PI_F + (0.5f * yaw_increment) + ((float)model_index * yaw_increment);
 
-		// All filter modesl start with the same weight
+		// All filter models start with the same weight
 		_ekf_gsf[model_index].W = 1.0f / (float)N_MODELS_EKFGSF;
 
 		// Assume velocity within 0.5 m/s of zero at alignment
@@ -490,7 +490,7 @@ void Ekf::runEKFGSF()
 	if (_control_status.flags.gps && _gps_data_ready && _control_status.flags.in_air) {
 		if (!_ekf_gsf_vel_fuse_started) {
 			for (uint8_t model_index = 0; model_index < N_MODELS_EKFGSF; model_index ++) {
-				// use the first measurement to set the velocities and correspnding covariances
+				// use the first measurement to set the velocities and corresponding covariances
 				_ekf_gsf[model_index].X[0] = _gps_sample_delayed.vel(0);
 				_ekf_gsf[model_index].X[1] = _gps_sample_delayed.vel(1);
 				_ekf_gsf[model_index].P[0][0] = sq(_gps_sample_delayed.sacc);
@@ -502,7 +502,7 @@ void Ekf::runEKFGSF()
 			float total_w = 0.0f;
 			float newWeight[N_MODELS_EKFGSF];
 			for (uint8_t model_index = 0; model_index < N_MODELS_EKFGSF; model_index ++) {
-				// subsequent measuremnents are fused as direct state observations
+				// subsequent measurements are fused as direct state observations
 				stateUpdateEKFGSF(model_index);
 
 				// calculate weighting for each model assuming a normal distribution
@@ -555,7 +555,7 @@ void Ekf::runEKFGSF()
 	}
 	/*
 	// calculate a composite covariance matrix from a weighted average of the covariance for each model
-	// models with larger innvoations are weighted less
+	// models with larger innovations are weighted less
 	memset(&P_GSF, 0, sizeof(P_GSF));
 	for (uint8_t model_index = 0; model_index < N_MODELS_EKFGSF; model_index ++) {
 		float Xdelta[3];
@@ -682,7 +682,7 @@ void Ekf::resetYawToEKFGSF()
 		calcExtVisRotMat();
 	}
 
-	// update the yaw angle variance using half the nominal yaw separation ebtween models
+	// update the yaw angle variance using half the nominal yaw separation between models
 	increaseQuatYawErrVariance(sq(fmaxf(M_PI_F / (float)N_MODELS_EKFGSF, 1.0e-2f)));
 
 	// add the reset amount to the output observer buffered data
@@ -752,7 +752,7 @@ bool Ekf::get_algo_test_data(float delAng[3],
 }
 
 // request the EKF reset the yaw to the estimate from the internal EKF-GSF filter
-// argment should be incremented only when a new reset is required
+// argument should be incremented only when a new reset is required
 void Ekf::request_ekfgsf_yaw_reset(uint8_t counter)
 {
 	if (counter > _yaw_extreset_counter) {
