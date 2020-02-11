@@ -874,13 +874,13 @@ private:
 
 	void runEKFGSF();
 	void initialiseEKFGSF();
-	void quatPredictEKFGSF(uint8_t model_index);
+	void quatPredictEKFGSF(const uint8_t model_index);
 	void alignQuatEKFGSF();
 	void alignQuatYawEKFGSF();
-	void statePredictEKFGSF(uint8_t model_index);
-	void stateUpdateEKFGSF(uint8_t model_index);
-	float gaussianDensityEKFGSF(uint8_t model_index);
-	void makeCovSymEKFGSF(uint8_t model_index);
+	void statePredictEKFGSF(const uint8_t model_index);
+	void stateUpdateEKFGSF(const uint8_t model_index);
+	float gaussianDensityEKFGSF(const uint8_t model_index) const;
+	void makeCovSymEKFGSF(const uint8_t model_index);
 	void resetYawToEKFGSF();
 	Dcmf taitBryan312ToRotMat(Vector3f &rot312);
 };
