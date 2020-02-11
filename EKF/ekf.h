@@ -746,7 +746,6 @@ private:
 		Vector3f gyro_bias;		///< gyro bias learned and used by the quaternion calculation
 		bool quat_initialised{false};	///< true when calibrator quaternion has been aligned
 		float accel_FR[2] {};		///< front-right acceleration vector in a horizontal plane (m/s/s)
-		float yaw_rate = 0;		///< vertical component of bias compensated gyro rate (rad/s).
 		float vel_NE[2] {};		///< NE velocity vector from last GPS measurement (m/s)
 		bool fuse_gps = false;		///< true when GPS should be fused on that frame
 		float accel_dt = 0;		///< time step used when generating _simple_accel_FR data (sec)
