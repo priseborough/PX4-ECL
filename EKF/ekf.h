@@ -265,7 +265,7 @@ public:
 	void set_min_required_gps_health_time(uint32_t time_us) { _min_gps_health_time_us = time_us; }
 
 	// get solution data for the EKF-GSF emergency yaw esitmator
-	void getDataEKFGSF(float *yaw_composite, float yaw[N_MODELS_EKFGSF], float innov_VN[N_MODELS_EKFGSF], float innov_VE[N_MODELS_EKFGSF], float weight[N_MODELS_EKFGSF]);
+	void getDataEKFGSF(float *yaw_composite, float yaw[N_MODELS_EKFGSF], float innov_VN[N_MODELS_EKFGSF], float innov_VE[N_MODELS_EKFGSF], float weight[N_MODELS_EKFGSF]) const;
 
 	// gets data which to be logged and used for EKF-GSF development replay
 	// returns false when no data available
@@ -775,13 +775,13 @@ private:
 
 	void runEKFGSF();
 	void initialiseEKFGSF();
-	void quatPredictEKFGSF(uint8_t model_index);
+	void quatPredictEKFGSF(const uint8_t model_index);
 	void alignQuatEKFGSF();
 	void alignQuatYawEKFGSF();
-	void statePredictEKFGSF(uint8_t model_index);
-	void stateUpdateEKFGSF(uint8_t model_index);
-	float gaussianDensityEKFGSF(uint8_t model_index);
-	void makeCovSymEKFGSF(uint8_t model_index);
+	void statePredictEKFGSF(const uint8_t model_index);
+	void stateUpdateEKFGSF(const uint8_t model_index);
+	float gaussianDensityEKFGSF(const uint8_t model_index) const;
+	void makeCovSymEKFGSF(const uint8_t model_index);
 	void resetYawToEKFGSF();
 	Dcmf taitBryan312ToRotMat(Vector3f &rot312);
 };
