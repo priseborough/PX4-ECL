@@ -662,7 +662,7 @@ void Ekf::controlGpsFusion()
 			// This special case reset can also be requested externally.
 			// The minimum time interval between resets to the EKF-GSF estimate must be limited to
 			// allow the EKF-GSF time to improve its estimate if the first reset was not successful.
-			float stopped_following_gps_velocity = (_time_last_imu - _time_last_hor_vel_fuse) > _params.EKFGSF_reset_delay &&
+			const bool stopped_following_gps_velocity = (_time_last_imu - _time_last_hor_vel_fuse) > _params.EKFGSF_reset_delay &&
 							   (_time_last_hor_vel_fuse > _time_last_on_ground_us);
 			if (!_control_status.flags.in_air) {
 				_time_last_on_ground_us = _time_last_imu;
