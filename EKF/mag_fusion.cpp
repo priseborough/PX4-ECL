@@ -620,7 +620,9 @@ void Ekf::fuseHeading()
 	if (_mag_use_inhibit) {
 		// The magnetomer cannot be trusted but we need to fuse a heading to prevent a badly
 		// conditoned covariance matrix developing over time.
-		if (!_vehicle_at_rest) {
+		const float quat_var_sum = P[0][0] + P[1][1] + P[2][2] + P[3][3];
+		const float quat_var_sum_limit = 0.01f;
+		if (!_vehicle_at_rest && (quat_var_sum > quat_var_sum_limit)) {
 			// Vehicle is not at rest so fuse a zero innovation and record the
 			// predicted heading to use as an observation when movement ceases.
 			_heading_innov = 0.0f;
