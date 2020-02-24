@@ -1489,7 +1489,8 @@ void Ekf::controlMagFusion()
 		bool not_using_gps = !(_params.fusion_mode & MASK_USE_GPS) || !_control_status.flags.gps;
 		bool not_using_evpos = !(_params.fusion_mode & MASK_USE_EVPOS) || !_control_status.flags.ev_pos;
 		bool not_selected_evyaw =  !(_params.fusion_mode & MASK_USE_EVYAW);
-		if (user_selected && not_using_gps && not_using_evpos && not_selected_evyaw) {
+		bool in_air_inhibit = _control_status.flags.in_air && (_params.mag_fusion_type == MAG_FUSE_TYPE_GROUND);
+		if ((user_selected && not_using_gps && not_using_evpos && not_selected_evyaw) || in_air_inhibit) {
 			_mag_use_inhibit = true;
 		} else {
 			_mag_use_inhibit = false;
