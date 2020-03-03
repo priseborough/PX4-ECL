@@ -525,6 +525,11 @@ void Ekf::runEKFGSF()
 				for (uint8_t model_index = 0; model_index < N_MODELS_EKFGSF; model_index ++) {
 					_ekf_gsf[model_index].W  = newWeight[model_index] * total_w_inv;
 				}
+			} else {
+				for (uint8_t model_index = 0; model_index < N_MODELS_EKFGSF; model_index ++) {
+					// reset to initial weights
+					_ekf_gsf[model_index].W = 1.0f / (float)N_MODELS_EKFGSF;
+				}
 			}
 
 			// Enforce a minimum weighting value. This was added during initial development but has not been needed
