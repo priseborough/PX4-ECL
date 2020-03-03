@@ -771,7 +771,7 @@ private:
 	void ahrsAlignTiltEKFGSF();
 	void ahrsAlignYawEKFGSF();
 	void statePredictEKFGSF(const uint8_t model_index);
-	void stateUpdateEKFGSF(const uint8_t model_index);
+	bool stateUpdateEKFGSF(const uint8_t model_index);
 	float gaussianDensityEKFGSF(const uint8_t model_index) const;
 	void makeCovSymEKFGSF(const uint8_t model_index);
 	bool resetYawToEKFGSF();

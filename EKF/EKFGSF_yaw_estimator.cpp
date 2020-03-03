@@ -274,7 +274,7 @@ void Ekf::statePredictEKFGSF(const uint8_t model_index)
 }
 
 // Update EKF states and covariance for specified model index using velocity measurement
-void Ekf::stateUpdateEKFGSF(const uint8_t model_index)
+bool Ekf::stateUpdateEKFGSF(const uint8_t model_index)
 {
 	// set observation variance from accuracy estimate supplied by GPS and apply a sanity check minimum
 	const float velObsVar = sq(fmaxf(_gps_sample_delayed.sacc, _params.gps_vel_noise));
@@ -320,10 +320,10 @@ void Ekf::stateUpdateEKFGSF(const uint8_t model_index)
 		}
 	} else {
 		// skip this fusion step because calculation is badly conditioned
-		return;
+		return false;
 	}
 
-	// calculate Kalman gain K  nd covariance matrix P
+	// calculate Kalman gain K and covariance matrix P
 	// autocode from https://github.com/priseborough/3_state_filter/blob/flightLogReplay-wip/calcK.txt
 	// and https://github.com/priseborough/3_state_filter/blob/flightLogReplay-wip/calcPmat.txt
 	const float t2 = P00*velObsVar;
@@ -337,7 +337,7 @@ void Ekf::stateUpdateEKFGSF(const uint8_t model_index)
 		t7 = 1.0f/t6;
 	} else {
 		// skip this fusion step
-		return;
+		return false;
 	}
 	const float t8 = P11+velObsVar;
 	const float t10 = P00+velObsVar;
@@ -422,6 +422,7 @@ void Ekf::stateUpdateEKFGSF(const uint8_t model_index)
 	_ahrs_ekf_gsf[model_index].R(1,1) = R_prev[0][1] * sinYaw + R_prev[1][1] * cosYaw;
 	_ahrs_ekf_gsf[model_index].R(1,2) = R_prev[0][2] * sinYaw + R_prev[1][2] * cosYaw;
 
+	return true;
 }
 
 void Ekf::initialiseEKFGSF()
@@ -499,17 +500,27 @@ void Ekf::runEKFGSF()
 		} else {
 			float total_w = 0.0f;
 			float newWeight[N_MODELS_EKFGSF];
+			bool weight_update_inhibit = false;
 			for (uint8_t model_index = 0; model_index < N_MODELS_EKFGSF; model_index ++) {
 				// subsequent measurements are fused as direct state observations
-				stateUpdateEKFGSF(model_index);
+				if (!stateUpdateEKFGSF(model_index)) {
+					weight_update_inhibit = true;
+				}
+			}
 
-				// calculate weighting for each model assuming a normal distribution
-				newWeight[model_index]= fmaxf(gaussianDensityEKFGSF(model_index) * _ekf_gsf[model_index].W, 0.0f);
+			for (uint8_t model_index = 0; model_index < N_MODELS_EKFGSF; model_index ++) {
+				if (weight_update_inhibit) {
+					// keep old weights
+					newWeight[model_index] = _ekf_gsf[model_index].W;
+				} else {
+					// calculate weighting for each model assuming a normal distribution
+					newWeight[model_index] = fmaxf(gaussianDensityEKFGSF(model_index) * _ekf_gsf[model_index].W, 0.0f);
+				}
 				total_w += newWeight[model_index];
 			}
 
 			// normalise the weighting function
-			if (_ekf_gsf_vel_fuse_started && total_w > 0.0f) {
+			if (_ekf_gsf_vel_fuse_started && total_w > 1e-6f) {
 				float total_w_inv = 1.0f / total_w;
 				for (uint8_t model_index = 0; model_index < N_MODELS_EKFGSF; model_index ++) {
 					_ekf_gsf[model_index].W  = newWeight[model_index] * total_w_inv;
@@ -595,9 +606,9 @@ float Ekf::gaussianDensityEKFGSF(const uint8_t model_index) const
 	const float t3 = t2 - t5; // determinant
 	float t4; // determinant inverse
 	if (fabsf(t3) > 1e-6f) {
-		t4 = 1.0f/t3;
+		t4 = 1.0f / t3;
 	} else {
-		t4 = 1.0f/t2;
+		t4 = 1.0f / fmaxf(t2, 1e-6f);
 	}
 
 	// inv(S)
