@@ -743,6 +743,7 @@ private:
 		float accel_dt = 0;		///< time step used when generating _simple_accel_FR data (sec)
 	};
 	_ahrs_ekf_gsf_struct _ahrs_ekf_gsf[N_MODELS_EKFGSF];
+	Vector3f _ahrs_accel_filt;		///< accel vector after application of LPF (m/s/s)
 	bool _ahrs_ekf_gsf_tilt_aligned = false;///< true the initial tilt alignment has been calculated
 	float _ahrs_accel_fusion_gain;		///< gain from accel vector tilt error to rate gyro correction used by AHRS calculation
 	Vector3f _ahrs_accel;			///< measured body frame specific force vector used by AHRS calculation (m/s/s)

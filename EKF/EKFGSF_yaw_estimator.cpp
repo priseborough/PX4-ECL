@@ -427,6 +427,7 @@ bool Ekf::stateUpdateEKFGSF(const uint8_t model_index)
 
 void Ekf::initialiseEKFGSF()
 {
+	_ahrs_accel_filt.zero();
 	memset(&X_GSF, 0, sizeof(X_GSF));
 	_ekf_gsf_vel_fuse_started = false;
 	_emergency_yaw_reset_time = 0;
@@ -461,8 +462,11 @@ void Ekf::initialiseEKFGSF()
 
 void Ekf::runEKFGSF()
 {
-	// Iniitialise states first time
+	// Convert from delta velocity to acceleration average across last IMU data sample period
+	// Protect against jitter in the time step
 	_ahrs_accel = _imu_sample_delayed.delta_vel / fmaxf(_imu_sample_delayed.delta_vel_dt, FILTER_UPDATE_PERIOD_S / 4);
+
+	// Initialise states first time
 	if (!_ahrs_ekf_gsf_tilt_aligned) {
 		// check for excessive acceleration to reduce likelihood of large inital roll/pitch errors
 		// due to vehicle movement
@@ -518,7 +522,7 @@ void Ekf::runEKFGSF()
 			if (_ekf_gsf_vel_fuse_started && total_w > 1e-15f && !weight_update_inhibit) {
 				float total_w_inv = 1.0f / total_w;
 				for (uint8_t model_index = 0; model_index < N_MODELS_EKFGSF; model_index ++) {
-					_ekf_gsf[model_index].W  = newWeight[model_index] * total_w_inv;
+					_ekf_gsf[model_index].W = newWeight[model_index] * total_w_inv;
 				}
 			}
 
@@ -778,14 +782,18 @@ Dcmf Ekf::taitBryan312ToRotMat(Vector3f &rot312)
 
 void Ekf::calcAccelGainEKFGSF()
 {
-	// calculate common values used by the AHRS complementary filter models
-	_ahrs_accel_norm = _ahrs_accel.norm();
 	_ahrs_turn_comp_enabled = _control_status.flags.fixed_wing && _params.EKFGSF_tas_default > FLT_EPSILON;
+
+	// low pass filter the accel vector to remove vibration effects using a time constant 10x faster than
+	// the AHRS tilt gain time constant
+	const float filter_coef = fminf(10.0f * _imu_sample_delayed.delta_vel_dt * _params.EKFGSF_tilt_gain, 1.0f);
+	_ahrs_accel_filt = _ahrs_accel_filt * (1.0f - filter_coef) + _ahrs_accel * filter_coef;
+	_ahrs_accel_norm = _ahrs_accel_filt.norm();
 
 	// Calculate the acceleration fusion gain using a continuous function that is unity at 1g and zero
 	// at the min and mas g value. Allow for more acceleration when flying as a fixed wing vehicle using centripetal
 	// acceleration correction as higher and more sustained g will be experienced.
-	// Use a quadratic finstead of linear unction to prevent vibration around 1g reducing the tilt correction effectiveness.
+	// Use a quadratic instead of linear function to prevent vibration around 1g reducing the tilt correction effectiveness.
 	float accel_g = _ahrs_accel_norm / CONSTANTS_ONE_G;
 	if (accel_g > 1.0f) {
 		if (_ahrs_turn_comp_enabled && accel_g < 2.0f) {
