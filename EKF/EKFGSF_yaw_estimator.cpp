@@ -509,26 +509,16 @@ void Ekf::runEKFGSF()
 			}
 
 			for (uint8_t model_index = 0; model_index < N_MODELS_EKFGSF; model_index ++) {
-				if (weight_update_inhibit) {
-					// keep old weights
-					newWeight[model_index] = _ekf_gsf[model_index].W;
-				} else {
-					// calculate weighting for each model assuming a normal distribution
-					newWeight[model_index] = fmaxf(gaussianDensityEKFGSF(model_index) * _ekf_gsf[model_index].W, 0.0f);
-				}
+				// calculate weighting for each model assuming a normal distribution
+				newWeight[model_index] = fmaxf(gaussianDensityEKFGSF(model_index) * _ekf_gsf[model_index].W, 0.0f);
 				total_w += newWeight[model_index];
 			}
 
 			// normalise the weighting function
-			if (_ekf_gsf_vel_fuse_started && total_w > 1e-6f) {
+			if (_ekf_gsf_vel_fuse_started && total_w > 1e-15f && !weight_update_inhibit) {
 				float total_w_inv = 1.0f / total_w;
 				for (uint8_t model_index = 0; model_index < N_MODELS_EKFGSF; model_index ++) {
 					_ekf_gsf[model_index].W  = newWeight[model_index] * total_w_inv;
-				}
-			} else {
-				for (uint8_t model_index = 0; model_index < N_MODELS_EKFGSF; model_index ++) {
-					// reset to initial weights
-					_ekf_gsf[model_index].W = 1.0f / (float)N_MODELS_EKFGSF;
 				}
 			}
 
@@ -609,12 +599,7 @@ float Ekf::gaussianDensityEKFGSF(const uint8_t model_index) const
 	const float t2 = _ekf_gsf[model_index].S[0][0] * _ekf_gsf[model_index].S[1][1];
 	const float t5 = _ekf_gsf[model_index].S[0][1] * _ekf_gsf[model_index].S[1][0];
 	const float t3 = t2 - t5; // determinant
-	float t4; // determinant inverse
-	if (fabsf(t3) > 1e-6f) {
-		t4 = 1.0f / t3;
-	} else {
-		t4 = 1.0f / fmaxf(t2, 1e-6f);
-	}
+	float t4 = 1.0f / fmaxf(t3, 1e-12f);
 
 	// inv(S)
 	float invMat[2][2];
