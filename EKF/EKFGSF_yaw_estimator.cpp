@@ -163,6 +163,9 @@ void Ekf::ahrsAlignTiltEKFGSF()
 	R.setRow(1, east_in_bf);
 	R.setRow(2, down_in_bf);
 
+	for (uint8_t model_index = 0; model_index < N_MODELS_EKFGSF; model_index++) {
+		_ahrs_ekf_gsf[model_index].R = R;
+	}
 }
 
 void Ekf::ahrsAlignYawEKFGSF()
