@@ -819,7 +819,7 @@ void Ekf::fixCovarianceErrors(bool force_symmetry)
 
 			_time_acc_bias_check = _time_last_imu;
 			_fault_status.flags.bad_acc_bias = false;
-			ECL_WARN_TIMESTAMPED("invalid accel bias - resetting covariance");
+			PX4_DEBUG("invalid accel bias - resetting covariance");
 
 		} else if (force_symmetry) {
 			// ensure the covariance values are symmetrical

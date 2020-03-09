@@ -54,7 +54,7 @@ bool Ekf::resetVelocity()
 
 	// reset EKF states
 	if (_control_status.flags.gps && isTimedOut(_last_gps_fail_us, (uint64_t)_min_gps_health_time_us)) {
-		ECL_INFO_TIMESTAMPED("reset velocity to GPS");
+		PX4_DEBUG("reset velocity to GPS");
 		// this reset is only called if we have new gps data at the fusion time horizon
 		_state.vel = _gps_sample_delayed.vel;
 
@@ -62,7 +62,7 @@ bool Ekf::resetVelocity()
 		P.uncorrelateCovarianceSetVariance<3>(4, sq(_gps_sample_delayed.sacc));
 
 	} else if (_control_status.flags.opt_flow) {
-		ECL_INFO_TIMESTAMPED("reset velocity to flow");
+		PX4_DEBUG("reset velocity to flow");
 		// constrain height above ground to be above minimum possible
 		float heightAboveGndEst = fmaxf((_terrain_vpos - _state.pos(2)), _params.rng_gnd_clearance);
 
@@ -94,7 +94,7 @@ bool Ekf::resetVelocity()
 		P.uncorrelateCovarianceSetVariance<2>(4, sq(range) * calcOptFlowMeasVar());
 
 	} else if (_control_status.flags.ev_vel) {
-		ECL_INFO_TIMESTAMPED("reset velocity to ev velocity");
+		PX4_DEBUG("reset velocity to ev velocity");
 		Vector3f _ev_vel = _ev_sample_delayed.vel;
 		if(_params.fusion_mode & MASK_ROTATE_EV){
 			_ev_vel = _R_ev_to_ekf *_ev_sample_delayed.vel;
@@ -102,7 +102,7 @@ bool Ekf::resetVelocity()
 		_state.vel = _ev_vel;
 		P.uncorrelateCovarianceSetVariance<3>(4, _ev_sample_delayed.velVar);
 	} else {
-		ECL_INFO_TIMESTAMPED("reset velocity to zero");
+		PX4_DEBUG("reset velocity to zero");
 		// Used when falling back to non-aiding mode of operation
 		_state.vel(0) = 0.0f;
 		_state.vel(1) = 0.0f;
@@ -144,7 +144,7 @@ bool Ekf::resetPosition()
 	_hpos_prev_available = false;
 
 	if (_control_status.flags.gps) {
-		ECL_INFO_TIMESTAMPED("reset position to GPS");
+		PX4_DEBUG("reset position to GPS");
 
 		// this reset is only called if we have new gps data at the fusion time horizon
 		_state.pos(0) = _gps_sample_delayed.pos(0);
@@ -154,7 +154,7 @@ bool Ekf::resetPosition()
 		P.uncorrelateCovarianceSetVariance<2>(7, sq(_gps_sample_delayed.hacc));
 
 	} else if (_control_status.flags.ev_pos) {
-		ECL_INFO_TIMESTAMPED("reset position to ev position");
+		PX4_DEBUG("reset position to ev position");
 
 		// this reset is only called if we have new ev data at the fusion time horizon
 		Vector3f _ev_pos = _ev_sample_delayed.pos;
@@ -168,7 +168,7 @@ bool Ekf::resetPosition()
 		P.uncorrelateCovarianceSetVariance<2>(7, _ev_sample_delayed.posVar.slice<2, 1>(0, 0));
 
 	} else if (_control_status.flags.opt_flow) {
-		ECL_INFO_TIMESTAMPED("reset position to last known position");
+		PX4_DEBUG("reset position to last known position");
 
 		if (!_control_status.flags.in_air) {
 			// we are likely starting OF for the first time so reset the horizontal position
@@ -186,7 +186,7 @@ bool Ekf::resetPosition()
 		P.uncorrelateCovarianceSetVariance<2>(7, 0.0f);
 
 	} else {
-		ECL_INFO_TIMESTAMPED("reset position to last known position");
+		PX4_DEBUG("reset position to last known position");
 		// Used when falling back to non-aiding mode of operation
 		_state.pos(0) = _last_known_posNE(0);
 		_state.pos(1) = _last_known_posNE(1);
@@ -418,11 +418,11 @@ bool Ekf::realignYawGPS()
 
 		// correct yaw angle using GPS ground course if compass yaw bad or yaw is previously not aligned
 		if (badMagYaw || !_control_status.flags.yaw_align) {
-			ECL_WARN_TIMESTAMPED("bad yaw corrected using GPS course");
+			PX4_DEBUG("bad yaw corrected using GPS course");
 
 			// declare the magnetometer as failed if a bad yaw has occurred more than once
 			if (_control_status.flags.mag_aligned_in_flight && (_num_bad_flight_yaw_events >= 2) && !_control_status.flags.mag_fault) {
-				ECL_WARN_TIMESTAMPED("stopping magnetometer use");
+				PX4_DEBUG("stopping magnetometer use");
 				_control_status.flags.mag_fault = true;
 			}
 
@@ -1779,7 +1779,7 @@ bool Ekf::resetYawToEKFGSF()
 		_control_status.flags.yaw_align = true;
 
 		if (_params.mag_fusion_type == MAG_FUSE_TYPE_NONE) {
-			ECL_INFO_TIMESTAMPED("Yaw aligned using IMU and GPS");
+			PX4_DEBUG("Yaw aligned using IMU and GPS");
 		} else {
 			ECL_INFO_TIMESTAMPED("Emergency yaw reset - magnetometer use stopped");
 		}
