@@ -1840,4 +1840,13 @@ void Ekf::runYawEKFGSF()
 	if (_gps_data_ready && _gps_sample_delayed.vacc > FLT_EPSILON && isfinite(_gps_sample_delayed.vel(0)) && isfinite(_gps_sample_delayed.vel(1))) {
 		yawEstimator.setVelocity(_gps_sample_delayed.vel.xy(), _gps_sample_delayed.vacc);
 	}
+
+	// Enable this yaw estimate to be used by the main filter for normal flight alignment
+	// when flying without a magnetometer. This requires fusion of a static yaw reference when on ground
+	// to prevent unconstrained quaternion bariance growth
+	if (_params.mag_fusion_type == MAG_FUSE_TYPE_NONE) {
+		_mag_use_inhibit = true;
+		_mag_use_inhibit_prev = true;
+		fuseHeading();
+	}
 }
