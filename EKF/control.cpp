@@ -197,14 +197,14 @@ void Ekf::controlExternalVisionFusion()
 				if (_params.fusion_mode & MASK_USE_EVPOS && !_control_status.flags.ev_pos) {
 					_control_status.flags.ev_pos = true;
 					resetPosition();
-					PX4_DEBUG("commencing external vision position fusion");
+					ECL_INFO_TIMESTAMPED("commencing external vision position fusion");
 				}
 
 				// turn on use of external vision measurements for velocity
 				if (_params.fusion_mode & MASK_USE_EVVEL && !_control_status.flags.ev_vel) {
 					_control_status.flags.ev_vel = true;
 					resetVelocity();
-					PX4_DEBUG("commencing external vision velocity fusion");
+					ECL_INFO_TIMESTAMPED("commencing external vision velocity fusion");
 				}
 			}
 		}
@@ -257,7 +257,7 @@ void Ekf::controlExternalVisionFusion()
 				stopMagHdgFusion();
 				stopMag3DFusion();
 
-				PX4_DEBUG("commencing external vision yaw fusion");
+				ECL_INFO_TIMESTAMPED("commencing external vision yaw fusion");
 			}
 		}
 
@@ -391,7 +391,7 @@ void Ekf::controlExternalVisionFusion()
 
 		// Turn off EV fusion mode if no data has been received
 		stopEvFusion();
-		PX4_DEBUG("External Vision Data Stopped");
+		ECL_INFO_TIMESTAMPED("External Vision Data Stopped");
 
 	}
 }
@@ -572,7 +572,7 @@ void Ekf::controlGpsFusion()
 				stopMagHdgFusion();
 				stopMag3DFusion();
 
-				PX4_DEBUG("commencing GPS yaw fusion");
+				ECL_INFO_TIMESTAMPED("commencing GPS yaw fusion");
 			}
 		}
 
@@ -623,7 +623,7 @@ void Ekf::controlGpsFusion()
 					}
 
 					if (_control_status.flags.gps) {
-						PX4_DEBUG("commencing GPS fusion");
+						ECL_INFO_TIMESTAMPED("commencing GPS fusion");
 						_time_last_gps = _time_last_imu;
 					}
 				}
@@ -641,7 +641,7 @@ void Ekf::controlGpsFusion()
 			if (_control_status.flags.ev_pos && !(_params.fusion_mode & MASK_ROTATE_EV)) {
 				resetPosition();
 			}
-			PX4_DEBUG("GPS data quality poor - stopping use");
+			ECL_WARN_TIMESTAMPED("GPS data quality poor - stopping use");
 		}
 
 		// handle case where we are not currently using GPS, but need to align yaw angle using EKF-GSF before
@@ -709,7 +709,7 @@ void Ekf::controlGpsFusion()
 				resetVelocity();
 				resetPosition();
 				_velpos_reset_request = false;
-				PX4_DEBUG("GPS fusion timeout - reset to GPS");
+				ECL_WARN_TIMESTAMPED("GPS fusion timeout - reset to GPS");
 
 				// Reset the timeout counters
 				_time_last_hor_pos_fuse = _time_last_imu;
@@ -775,12 +775,12 @@ void Ekf::controlGpsFusion()
 
 	} else if (_control_status.flags.gps && (_imu_sample_delayed.time_us - _gps_sample_delayed.time_us > (uint64_t)10e6)) {
 		stopGpsFusion();
-		PX4_DEBUG("GPS data stopped");
+		ECL_WARN_TIMESTAMPED("GPS data stopped");
 	}  else if (_control_status.flags.gps && (_imu_sample_delayed.time_us - _gps_sample_delayed.time_us > (uint64_t)1e6) && isOtherSourceOfHorizontalAidingThan(_control_status.flags.gps)) {
 		// Handle the case where we are fusing another position source along GPS,
 		// stop waiting for GPS after 1 s of lost signal
 		stopGpsFusion();
-		PX4_DEBUG("GPS data stopped, using only EV or OF");
+		ECL_WARN_TIMESTAMPED("GPS data stopped, using only EV or OF");
 	}
 }
 
@@ -852,7 +852,7 @@ void Ekf::controlHeightSensorTimeouts()
 				setControlGPSHeight();
 
 				request_height_reset = true;
-				PX4_DEBUG("baro hgt timeout - reset to GPS");
+				ECL_WARN_TIMESTAMPED("baro hgt timeout - reset to GPS");
 
 			} else if (baro_data_available) {
 				// set height sensor health
@@ -861,7 +861,7 @@ void Ekf::controlHeightSensorTimeouts()
 				setControlBaroHeight();
 
 				request_height_reset = true;
-				PX4_DEBUG("baro hgt timeout - reset to baro");
+				ECL_WARN_TIMESTAMPED("baro hgt timeout - reset to baro");
 
 			}
 		}
@@ -890,13 +890,13 @@ void Ekf::controlHeightSensorTimeouts()
 				setControlBaroHeight();
 
 				request_height_reset = true;
-				PX4_DEBUG("gps hgt timeout - reset to baro");
+				ECL_WARN_TIMESTAMPED("gps hgt timeout - reset to baro");
 
 			} else if (!_gps_hgt_intermittent) {
 				setControlGPSHeight();
 
 				request_height_reset = true;
-				PX4_DEBUG("gps hgt timeout - reset to GPS");
+				ECL_WARN_TIMESTAMPED("gps hgt timeout - reset to GPS");
 
 			}
 		}
@@ -913,7 +913,7 @@ void Ekf::controlHeightSensorTimeouts()
 				setControlRangeHeight();
 
 				request_height_reset = true;
-				PX4_DEBUG("rng hgt timeout - reset to rng hgt");
+				ECL_WARN_TIMESTAMPED("rng hgt timeout - reset to rng hgt");
 
 			} else if (baro_data_available) {
 				// set height sensor health
@@ -922,7 +922,7 @@ void Ekf::controlHeightSensorTimeouts()
 				setControlBaroHeight();
 
 				request_height_reset = true;
-				PX4_DEBUG("rng hgt timeout - reset to baro");
+				ECL_WARN_TIMESTAMPED("rng hgt timeout - reset to baro");
 
 			}
 		}
@@ -941,7 +941,7 @@ void Ekf::controlHeightSensorTimeouts()
 				setControlEVHeight();
 
 				request_height_reset = true;
-				PX4_DEBUG("ev hgt timeout - reset to ev hgt");
+				ECL_WARN_TIMESTAMPED("ev hgt timeout - reset to ev hgt");
 
 			} else if (baro_data_available) {
 				// set height sensor health
@@ -950,7 +950,7 @@ void Ekf::controlHeightSensorTimeouts()
 				setControlBaroHeight();
 
 				request_height_reset = true;
-				PX4_DEBUG("ev hgt timeout - reset to baro");
+				ECL_WARN_TIMESTAMPED("ev hgt timeout - reset to baro");
 
 			}
 		}
@@ -1382,7 +1382,7 @@ void Ekf::controlFakePosFusion()
 				_fuse_hpos_as_odom = false;
 
 				if (_time_last_fake_pos != 0) {
-					PX4_DEBUG("stopping navigation");
+					ECL_WARN_TIMESTAMPED("stopping navigation");
 				}
 
 			}

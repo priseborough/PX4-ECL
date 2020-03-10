@@ -99,12 +99,12 @@ bool Ekf::collect_gps(const gps_message &gps)
 		// if the user has selected GPS as the primary height source, switch across to using it
 
 		if (_params.vdist_sensor_type == VDIST_SENSOR_GPS) {
-			PX4_DEBUG("GPS checks passed (WGS-84 origin set, using GPS height)");
+			ECL_INFO_TIMESTAMPED("GPS checks passed (WGS-84 origin set, using GPS height)");
 			setControlGPSHeight();
 			// zero the sensor offset
 			_hgt_sensor_offset = 0.0f;
 		} else {
-			PX4_DEBUG("GPS checks passed (WGS-84 origin set)");
+			ECL_INFO_TIMESTAMPED("GPS checks passed (WGS-84 origin set)");
 		}
 	}
 
