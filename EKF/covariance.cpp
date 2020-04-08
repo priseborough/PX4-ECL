@@ -156,7 +156,7 @@ void Ekf::predictCovariance()
 	float dvy_b = _state.accel_bias(1);
 	float dvz_b = _state.accel_bias(2);
 
-	float dt = math::constrain(_imu_sample_delayed.delta_ang_dt, 0.5f * FILTER_UPDATE_PERIOD_S, 2.0f * FILTER_UPDATE_PERIOD_S);
+	float dt = FILTER_UPDATE_PERIOD_S;
 	float dt_inv = 1.0f / dt;
 
 	// compute noise variance for stationary processes
@@ -749,12 +749,12 @@ void Ekf::fixCovarianceErrors()
 
 	for (int i = 4; i <= 6; i++) {
 		// NED velocity states
-		P[i][i] = math::constrain(P[i][i], 0.0f, P_lim[1]);
+		P[i][i] = math::constrain(P[i][i], 1E-6f, P_lim[1]);
 	}
 
 	for (int i = 7; i <= 9; i++) {
 		// NED position states
-		P[i][i] = math::constrain(P[i][i], 0.0f, P_lim[2]);
+		P[i][i] = math::constrain(P[i][i], 1E-6f, P_lim[2]);
 	}
 
 	for (int i = 10; i <= 12; i++) {
