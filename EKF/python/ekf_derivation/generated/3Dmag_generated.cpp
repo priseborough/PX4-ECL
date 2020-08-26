@@ -52,6 +52,7 @@ Hfusion.at<20>() = 0;
 Hfusion.at<21>() = 0;
 Hfusion.at<22>() = 0;
 Hfusion.at<23>() = 0;
+Hfusion.at<24>() = 0;
 
 
 // Kalman gains
@@ -79,6 +80,7 @@ Kfusion(20) = HKX24*(HKX10*P(17,20) - HKX11*P(18,20) + HKX12*P(1,20) + HKX13*P(0
 Kfusion(21) = HKX24*(HKX10*P(17,21) - HKX11*P(18,21) + HKX12*P(1,21) + HKX13*P(0,21) - HKX14*P(2,21) + HKX15*P(3,21) + HKX6*P(16,21) + P(19,21));
 Kfusion(22) = HKX24*(HKX10*P(17,22) - HKX11*P(18,22) + HKX12*P(1,22) + HKX13*P(0,22) - HKX14*P(2,22) + HKX15*P(3,22) + HKX6*P(16,22) + P(19,22));
 Kfusion(23) = HKX24*(HKX10*P(17,23) - HKX11*P(18,23) + HKX12*P(1,23) + HKX13*P(0,23) - HKX14*P(2,23) + HKX15*P(3,23) + HKX6*P(16,23) + P(19,23));
+Kfusion(24) = HKX24*(HKX10*P(17,24) - HKX11*P(18,24) + HKX12*P(1,24) + HKX13*P(0,24) - HKX14*P(2,24) + HKX15*P(3,24) + HKX6*P(16,24) + P(19,24));
 
 
 // Axis 1 equations
@@ -135,6 +137,7 @@ Hfusion.at<20>() = 1;
 Hfusion.at<21>() = 0;
 Hfusion.at<22>() = 0;
 Hfusion.at<23>() = 0;
+Hfusion.at<24>() = 0;
 
 
 // Kalman gains
@@ -162,6 +165,7 @@ Kfusion(20) = HKY23*HKY24;
 Kfusion(21) = HKY24*(HKY10*P(18,21) - HKY11*P(16,21) + HKY12*P(2,21) + HKY13*P(0,21) + HKY14*P(1,21) - HKY15*P(3,21) + HKY8*P(17,21) + P(20,21));
 Kfusion(22) = HKY24*(HKY10*P(18,22) - HKY11*P(16,22) + HKY12*P(2,22) + HKY13*P(0,22) + HKY14*P(1,22) - HKY15*P(3,22) + HKY8*P(17,22) + P(20,22));
 Kfusion(23) = HKY24*(HKY10*P(18,23) - HKY11*P(16,23) + HKY12*P(2,23) + HKY13*P(0,23) + HKY14*P(1,23) - HKY15*P(3,23) + HKY8*P(17,23) + P(20,23));
+Kfusion(24) = HKY24*(HKY10*P(18,24) - HKY11*P(16,24) + HKY12*P(2,24) + HKY13*P(0,24) + HKY14*P(1,24) - HKY15*P(3,24) + HKY8*P(17,24) + P(20,24));
 
 
 // Axis 2 equations
@@ -218,6 +222,7 @@ Hfusion.at<20>() = 0;
 Hfusion.at<21>() = 1;
 Hfusion.at<22>() = 0;
 Hfusion.at<23>() = 0;
+Hfusion.at<24>() = 0;
 
 
 // Kalman gains
@@ -245,5 +250,6 @@ Kfusion(20) = HKZ24*(HKZ10*P(16,20) - HKZ11*P(17,20) + HKZ12*P(3,20) + HKZ13*P(0
 Kfusion(21) = HKZ23*HKZ24;
 Kfusion(22) = HKZ24*(HKZ10*P(16,22) - HKZ11*P(17,22) + HKZ12*P(3,22) + HKZ13*P(0,22) - HKZ14*P(1,22) + HKZ15*P(2,22) + HKZ9*P(18,22) + P(21,22));
 Kfusion(23) = HKZ24*(HKZ10*P(16,23) - HKZ11*P(17,23) + HKZ12*P(3,23) + HKZ13*P(0,23) - HKZ14*P(1,23) + HKZ15*P(2,23) + HKZ9*P(18,23) + P(21,23));
+Kfusion(24) = HKZ24*(HKZ10*P(16,24) - HKZ11*P(17,24) + HKZ12*P(3,24) + HKZ13*P(0,24) - HKZ14*P(1,24) + HKZ15*P(2,24) + HKZ9*P(18,24) + P(21,24));
 
 

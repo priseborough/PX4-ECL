@@ -79,6 +79,7 @@ Hfusion.at<20>() = 0;
 Hfusion.at<21>() = 0;
 Hfusion.at<22>() = HK29;
 Hfusion.at<23>() = HK16*HK32;
+Hfusion.at<24>() = 0;
 
 
 // Kalman gains
@@ -106,5 +107,6 @@ Kfusion(20) = HK52*(HK28*P(20,22) - HK28*P(4,20) + HK32*P(20,23) - HK32*P(5,20) 
 Kfusion(21) = HK52*(HK28*P(21,22) - HK28*P(4,21) + HK32*P(21,23) - HK32*P(5,21) + HK33*P(6,21) + HK34*P(2,21) + HK35*P(1,21) - HK36*P(3,21) + HK37*P(0,21));
 Kfusion(22) = HK45*HK52;
 Kfusion(23) = HK42*HK52;
+Kfusion(24) = HK52*(HK28*P(22,24) - HK28*P(4,24) + HK32*P(23,24) - HK32*P(5,24) + HK33*P(6,24) + HK34*P(2,24) + HK35*P(1,24) - HK36*P(3,24) + HK37*P(0,24));
 
 

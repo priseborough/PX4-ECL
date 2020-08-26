@@ -60,6 +60,7 @@ Hfusion.at<20>() = 0;
 Hfusion.at<21>() = 0;
 Hfusion.at<22>() = HK8;
 Hfusion.at<23>() = HK10;
+Hfusion.at<24>() = 0;
 
 
 // Kalman gains
@@ -87,6 +88,7 @@ Kfusion(20) = -HK32*(-HK12*P(20,23) + HK12*P(5,20) - HK13*P(6,20) + HK14*P(1,20)
 Kfusion(21) = -HK32*(-HK12*P(21,23) + HK12*P(5,21) - HK13*P(6,21) + HK14*P(1,21) + HK15*P(0,21) - HK16*P(2,21) + HK17*P(3,21) - HK7*P(21,22) + HK7*P(4,21));
 Kfusion(22) = -HK28*HK32;
 Kfusion(23) = -HK20*HK32;
+Kfusion(24) = -HK32*(-HK12*P(23,24) + HK12*P(5,24) - HK13*P(6,24) + HK14*P(1,24) + HK15*P(0,24) - HK16*P(2,24) + HK17*P(3,24) - HK7*P(22,24) + HK7*P(4,24));
 
 
 // Axis 1 equations
@@ -151,6 +153,7 @@ Hfusion.at<20>() = 0;
 Hfusion.at<21>() = 0;
 Hfusion.at<22>() = -HK8;
 Hfusion.at<23>() = HK10;
+Hfusion.at<24>() = 0;
 
 
 // Kalman gains
@@ -178,5 +181,6 @@ Kfusion(20) = -HK32*(HK12*P(6,20) + HK13*P(20,22) - HK13*P(4,20) + HK14*P(2,20) 
 Kfusion(21) = -HK32*(HK12*P(6,21) + HK13*P(21,22) - HK13*P(4,21) + HK14*P(2,21) + HK15*P(0,21) + HK16*P(1,21) - HK17*P(3,21) - HK9*P(21,23) + HK9*P(5,21));
 Kfusion(22) = -HK22*HK32;
 Kfusion(23) = -HK28*HK32;
+Kfusion(24) = -HK32*(HK12*P(6,24) + HK13*P(22,24) - HK13*P(4,24) + HK14*P(2,24) + HK15*P(0,24) + HK16*P(1,24) - HK17*P(3,24) - HK9*P(23,24) + HK9*P(5,24));
 
 

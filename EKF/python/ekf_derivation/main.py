@@ -50,10 +50,10 @@ def quat_mult(p,q):
 
 def create_symmetric_cov_matrix():
     # define a symbolic covariance matrix
-    P = Matrix(24,24,create_cov_matrix)
+    P = Matrix(25,25,create_cov_matrix)
 
-    for index in range(24):
-        for j in range(24):
+    for index in range(25):
+        for j in range(25):
             if index > j:
                 P[index,j] = P[j,index]
 
@@ -87,16 +87,16 @@ def generate_observation_equations(P,state,observation,variance,varname="HK"):
 # generate equations for observation vector Jacobian and Kalman gain
 # n_obs is the vector dimension and must be >= 2
 def generate_observation_vector_equations(P,state,observation,variance,n_obs):
-    K = zeros(24,n_obs)
+    K = zeros(25,n_obs)
     H = observation.jacobian(state)
-    HK = zeros(n_obs*48,1)
+    HK = zeros(n_obs*50,1)
     for index in range(n_obs):
         H[index,:] = Matrix([observation[index]]).jacobian(state)
         innov_var = H[index,:] * P * H[index,:].T + Matrix([variance])
         assert(innov_var.shape[0] == 1)
         assert(innov_var.shape[1] == 1)
         K[:,index] = P * H[index,:].T / innov_var[0,0]
-        HK[index*48:(index+1)*48,0] = Matrix([H[index,:].transpose(), K[:,index]])
+        HK[index*50:(index+1)*50,0] = Matrix([H[index,:].transpose(), K[:,index]])
 
     HK_simple = cse(HK, symbols("HK0:1000"), optimizations='basic')
 
@@ -111,32 +111,37 @@ def write_equations_to_file(equations,code_generator_id,n_obs):
         code_generator_id.print_string("Sub Expressions")
         code_generator_id.write_subexpressions(equations[0])
         code_generator_id.print_string("Observation Jacobians")
-        code_generator_id.write_matrix(Matrix(equations[1][0][0:24]), "Hfusion", False, ".at<", ">()")
+        code_generator_id.write_matrix(Matrix(equations[1][0][0:25]), "Hfusion", False, ".at<", ">()")
         code_generator_id.print_string("Kalman gains")
-        code_generator_id.write_matrix(Matrix(equations[1][0][24:]), "Kfusion", False, "(", ")")
+        code_generator_id.write_matrix(Matrix(equations[1][0][25:]), "Kfusion", False, "(", ")")
     else:
         code_generator_id.print_string("Sub Expressions")
         code_generator_id.write_subexpressions(equations[0])
         for axis_index in range(n_obs):
-            start_index = axis_index*48
+            start_index = axis_index*50
             code_generator_id.print_string("Observation Jacobians - axis %i" % axis_index)
-            code_generator_id.write_matrix(Matrix(equations[1][0][start_index:start_index+24]), "Hfusion", False, ".at<", ">()")
+            code_generator_id.write_matrix(Matrix(equations[1][0][start_index:start_index+25]), "Hfusion", False, ".at<", ">()")
             code_generator_id.print_string("Kalman gains - axis %i" % axis_index)
-            code_generator_id.write_matrix(Matrix(equations[1][0][start_index+24:start_index+48]), "Kfusion", False, "(", ")")
+            code_generator_id.write_matrix(Matrix(equations[1][0][start_index+25:start_index+50]), "Kfusion", False, "(", ")")
 
     return
 
 # derive equations for sequential fusion of optical flow measurements
-def optical_flow_observation(P,state,R_to_body,vx,vy,vz):
+def optical_flow_observation(P,state,R_earth_to_body,vx,vy,vz,pz,ptz):
     flow_code_generator = CodeGenerator("./generated/flow_generated.cpp")
-    range = symbols("range", real=True) # range from camera focal point to ground along sensor Z axis
     obs_var = symbols("R_LOS", real=True) # optical flow line of sight rate measurement noise variance
 
     # Define rotation matrix from body to sensor frame
-    Tbs = Matrix(3,3,create_Tbs_matrix)
+    R_body_to_aensor = Matrix(3,3,create_Tbs_matrix)
+
+    # get rotation matrix from earth to sensor frame
+    R_earth_to_sensor = R_body_to_aensor * R_earth_to_body
 
     # Calculate earth relative velocity in a non-rotating sensor frame
-    relVelSensor = Tbs * R_to_body * Matrix([vx,vy,vz])
+    relVelSensor = R_earth_to_sensor * Matrix([vx,vy,vz])
+
+    # calculate range to ground measured along Z sensor axis
+    range = (ptz - pz) / R_earth_to_sensor[2,2]
 
     # Divide by range to get predicted angular LOS rates relative to X and Y
     # axes. Note these are rates in a non-rotating sensor frame
@@ -176,14 +181,14 @@ def body_frame_velocity_observation(P,state,R_to_body,vx,vy,vz):
     vel_bf_code_generator = CodeGenerator("./generated/vel_bf_generated.cpp")
     axes = [0,1,2]
     H_obs = vel_bf.jacobian(state) # observation Jacobians
-    K_gain = zeros(24,3)
+    K_gain = zeros(25,3)
     for index in axes:
         equations = generate_observation_equations(P,state,vel_bf[index],obs_var)
 
         vel_bf_code_generator.print_string("axis %i" % index)
         vel_bf_code_generator.write_subexpressions(equations[0])
-        vel_bf_code_generator.write_matrix(Matrix(equations[1][0][0:24]), "H_VEL", False, "(", ")")
-        vel_bf_code_generator.write_matrix(Matrix(equations[1][0][24:]), "Kfusion", False, "(", ")")
+        vel_bf_code_generator.write_matrix(Matrix(equations[1][0][0:25]), "H_VEL", False, "(", ")")
+        vel_bf_code_generator.write_matrix(Matrix(equations[1][0][25:]), "Kfusion", False, "(", ")")
 
     vel_bf_code_generator.close()
 
@@ -257,7 +262,7 @@ def body_frame_accel_observation(P,state,R_to_body,vx,vy,vz,wx,wy):
 
     acc_bf_code_generator  = CodeGenerator("./generated/acc_bf_generated.cpp")
     H = observation.jacobian(state)
-    K = zeros(24,2)
+    K = zeros(25,2)
     axes = [0,1]
     for index in axes:
         equations = generate_observation_equations(P,state,observation[index],obs_var)
@@ -556,22 +561,28 @@ def generate_code():
     wx, wy = symbols("vwn, vwe", real=True)
     w = Matrix([wx,wy])
 
+    # vertical position of terrain underneath vehicle
+    ptz = symbols("ptd", real=True)
+
     # state vector at arbitrary time t
-    state = Matrix([q,v,p,d_ang_b,d_vel_b,i,ib,w])
+    state = Matrix([q, v, p, d_ang_b, d_vel_b, i, ib, w, ptz])
 
     print('Defining state propagation ...')
+    # kinematic processes driven by IMU 'control inputs'
     q_new = quat_mult(q, Matrix([1, 0.5 * d_ang_true[0],  0.5 * d_ang_true[1],  0.5 * d_ang_true[2]]))
     v_new = v + R_to_earth * d_vel_true + Matrix([0,0,g]) * dt
     p_new = p + v * dt
 
+    # static processes
     d_ang_b_new = d_ang_b
     d_vel_b_new = d_vel_b
     i_new = i
     ib_new = ib
     w_new = w
+    ptz_new = ptz
 
     # predicted state vector at time t + dt
-    state_new = Matrix([q_new, v_new, p_new, d_ang_b_new, d_vel_b_new, i_new, ib_new, w_new])
+    state_new = Matrix([q_new, v_new, p_new, d_ang_b_new, d_vel_b_new, i_new, ib_new, w_new, ptz_new])
 
     print('Computing state propagation jacobian ...')
     A = state_new.jacobian(state)
@@ -582,8 +593,8 @@ def generate_code():
     print('Computing covariance propagation ...')
     P_new = A * P * A.T + G * var_u * G.T
 
-    for index in range(24):
-        for j in range(24):
+    for index in range(25):
+        for j in range(25):
             if index > j:
                 P_new[index,j] = 0
 
@@ -613,7 +624,7 @@ def generate_code():
     print('Generating sideslip observation code ...')
     beta_observation(P,state,R_to_body,vx,vy,vz,wx,wy)
     print('Generating optical flow observation code ...')
-    optical_flow_observation(P,state,R_to_body,vx,vy,vz)
+    optical_flow_observation(P,state,R_to_body,vx,vy,vz,pz,ptz)
     print('Generating body frame velocity observation code ...')
     body_frame_velocity_observation(P,state,R_to_body,vx,vy,vz)
     print('Generating body frame acceleration observation code ...')

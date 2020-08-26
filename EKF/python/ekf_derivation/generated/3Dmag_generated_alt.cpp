@@ -111,6 +111,7 @@ Hfusion.at<20>() = 0;
 Hfusion.at<21>() = 0;
 Hfusion.at<22>() = 0;
 Hfusion.at<23>() = 0;
+Hfusion.at<24>() = 0;
 
 
 // Kalman gains - axis 0
@@ -138,6 +139,7 @@ Kfusion(20) = HK50*(HK21*P(16,20) + HK27*P(17,20) - HK28*P(18,20) + HK29*P(1,20)
 Kfusion(21) = HK50*(HK21*P(16,21) + HK27*P(17,21) - HK28*P(18,21) + HK29*P(1,21) + HK30*P(0,21) - HK32*P(2,21) + HK34*P(3,21) + P(19,21));
 Kfusion(22) = HK50*(HK21*P(16,22) + HK27*P(17,22) - HK28*P(18,22) + HK29*P(1,22) + HK30*P(0,22) - HK32*P(2,22) + HK34*P(3,22) + P(19,22));
 Kfusion(23) = HK50*(HK21*P(16,23) + HK27*P(17,23) - HK28*P(18,23) + HK29*P(1,23) + HK30*P(0,23) - HK32*P(2,23) + HK34*P(3,23) + P(19,23));
+Kfusion(24) = HK50*(HK21*P(16,24) + HK27*P(17,24) - HK28*P(18,24) + HK29*P(1,24) + HK30*P(0,24) - HK32*P(2,24) + HK34*P(3,24) + P(19,24));
 
 
 // Observation Jacobians - axis 1
@@ -165,6 +167,7 @@ Hfusion.at<20>() = 1;
 Hfusion.at<21>() = 0;
 Hfusion.at<22>() = 0;
 Hfusion.at<23>() = 0;
+Hfusion.at<24>() = 0;
 
 
 // Kalman gains - axis 1
@@ -192,6 +195,7 @@ Kfusion(20) = HK70*HK71;
 Kfusion(21) = HK71*(HK29*P(2,21) - HK30*P(3,21) + HK32*P(1,21) + HK34*P(0,21) + HK53*P(17,21) + HK57*P(18,21) - HK58*P(16,21) + P(20,21));
 Kfusion(22) = HK71*(HK29*P(2,22) - HK30*P(3,22) + HK32*P(1,22) + HK34*P(0,22) + HK53*P(17,22) + HK57*P(18,22) - HK58*P(16,22) + P(20,22));
 Kfusion(23) = HK71*(HK29*P(2,23) - HK30*P(3,23) + HK32*P(1,23) + HK34*P(0,23) + HK53*P(17,23) + HK57*P(18,23) - HK58*P(16,23) + P(20,23));
+Kfusion(24) = HK71*(HK29*P(2,24) - HK30*P(3,24) + HK32*P(1,24) + HK34*P(0,24) + HK53*P(17,24) + HK57*P(18,24) - HK58*P(16,24) + P(20,24));
 
 
 // Observation Jacobians - axis 2
@@ -219,6 +223,7 @@ Hfusion.at<20>() = 0;
 Hfusion.at<21>() = 1;
 Hfusion.at<22>() = 0;
 Hfusion.at<23>() = 0;
+Hfusion.at<24>() = 0;
 
 
 // Kalman gains - axis 2
@@ -246,5 +251,6 @@ Kfusion(20) = HK84*(HK29*P(3,20) + HK30*P(2,20) + HK32*P(0,20) - HK34*P(1,20) + 
 Kfusion(21) = HK83*HK84;
 Kfusion(22) = HK84*(HK29*P(3,22) + HK30*P(2,22) + HK32*P(0,22) - HK34*P(1,22) + HK73*P(18,22) + HK74*P(16,22) - HK75*P(17,22) + P(21,22));
 Kfusion(23) = HK84*(HK29*P(3,23) + HK30*P(2,23) + HK32*P(0,23) - HK34*P(1,23) + HK73*P(18,23) + HK74*P(16,23) - HK75*P(17,23) + P(21,23));
+Kfusion(24) = HK84*(HK29*P(3,24) + HK30*P(2,24) + HK32*P(0,24) - HK34*P(1,24) + HK73*P(18,24) + HK74*P(16,24) - HK75*P(17,24) + P(21,24));
 
 
