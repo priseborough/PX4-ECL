@@ -275,7 +275,7 @@ public:
 	// get solution data from the EKF-GSF emergency yaw estimator
 	// returns false when data is not available
 	bool getDataEKFGSF(float *yaw_composite, float *yaw_variance, float yaw[N_MODELS_EKFGSF],
-			   float innov_VN[N_MODELS_EKFGSF], float innov_VE[N_MODELS_EKFGSF], float weight[N_MODELS_EKFGSF]);
+			   float innov_std_dev[N_MODELS_EKFGSF], float weight[N_MODELS_EKFGSF]);
 
 private:
 

@@ -405,13 +405,13 @@ bool EKFGSF_yaw::updateEKF(const uint8_t model_index)
 	}
 
 	// test ratio = transpose(innovation) * inverse(innovation variance) * innovation = [1x2] * [2,2] * [2,1] = [1,1]
-	const float test_ratio = _ekf_gsf[model_index].innov * (_ekf_gsf[model_index].S_inverse * _ekf_gsf[model_index].innov);
+	_ekf_gsf[model_index].test_ratio = _ekf_gsf[model_index].innov * (_ekf_gsf[model_index].S_inverse * _ekf_gsf[model_index].innov);
 
 	// Perform a chi-square innovation consistency test and calculate a compression scale factor
 	// that limits the magnitude of innovations to 5-sigma
 	// If the test ratio is greater than 25 (5 Sigma) then reduce the length of the innovation vector to clip it at 5-Sigma
 	// This protects from large measurement spikes
-	const float innov_comp_scale_factor = test_ratio > 25.f ? sqrtf(25.0f / test_ratio) : 1.f;
+	const float innov_comp_scale_factor = _ekf_gsf[model_index].test_ratio > 25.f ? sqrtf(25.0f / _ekf_gsf[model_index].test_ratio) : 1.f;
 
 	// Correct the state vector and capture the change in yaw angle
 	const float oldYaw = _ekf_gsf[model_index].X(2);
@@ -470,15 +470,14 @@ float EKFGSF_yaw::gaussianDensity(const uint8_t model_index) const
 	return _m_2pi_inv * sqrtf(_ekf_gsf[model_index].S_det_inverse) * expf(-0.5f * normDist);
 }
 
-bool EKFGSF_yaw::getLogData(float *yaw_composite, float *yaw_variance, float yaw[N_MODELS_EKFGSF], float innov_VN[N_MODELS_EKFGSF], float innov_VE[N_MODELS_EKFGSF], float weight[N_MODELS_EKFGSF])
+bool EKFGSF_yaw::getLogData(float *yaw_composite, float *yaw_variance, float yaw[N_MODELS_EKFGSF], float innov_std_dev[N_MODELS_EKFGSF], float weight[N_MODELS_EKFGSF])
 {
 	if (_ekf_gsf_vel_fuse_started) {
 		*yaw_composite = _gsf_yaw;
 		*yaw_variance = _gsf_yaw_variance;
 		for (uint8_t model_index = 0; model_index < N_MODELS_EKFGSF; model_index++) {
 			yaw[model_index] = _ekf_gsf[model_index].X(2);
-			innov_VN[model_index] = _ekf_gsf[model_index].innov(0);
-			innov_VE[model_index] = _ekf_gsf[model_index].innov(1);
+			innov_std_dev[model_index] = sqrtf(_ekf_gsf[model_index].test_ratio);
 			weight[model_index] = _model_weights(model_index);
 		}
 		return true;
@@ -557,6 +556,18 @@ bool EKFGSF_yaw::getInnovVecLength(float *innovVecLength)
     *innovVecLength = 0.0f;
     for (uint8_t model_index = 0; model_index < N_MODELS_EKFGSF; model_index ++) {
         *innovVecLength += _model_weights(model_index) * sqrtf((sq(_ekf_gsf[model_index].innov(0)) + sq(_ekf_gsf[model_index].innov(1))));
+    }
+    return true;
+}
+
+bool EKFGSF_yaw::getInnovStdDev(float *innovStdDev)
+{
+    if (!_ekf_gsf_vel_fuse_started) {
+        return false;
+    }
+    *innovStdDev = 0.0f;
+    for (uint8_t model_index = 0; model_index < N_MODELS_EKFGSF; model_index ++) {
+        *innovStdDev += _model_weights(model_index) * sqrtf(_ekf_gsf[model_index].test_ratio);
     }
     return true;
 }
