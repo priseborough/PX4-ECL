@@ -51,6 +51,10 @@ public:
     	// return false if no yaw estimate available
     	bool getYawData(float *yaw, float *yaw_variance);
 
+	// get a weighted average velocity innovation vector length in m/s using the GSF weights
+	// return false if innovation length is not available
+	bool getInnovVecLength(float *innovVecLength);
+
 private:
 
 	// Parameters - these could be made tuneable

@@ -548,3 +548,15 @@ void EKFGSF_yaw::setVelocity(const Vector2f &velocity, float accuracy)
 	_vel_accuracy = accuracy;
 	_vel_data_updated = true;
 }
+
+bool EKFGSF_yaw::getInnovVecLength(float *innovVecLength)
+{
+    if (!_ekf_gsf_vel_fuse_started) {
+        return false;
+    }
+    *innovVecLength = 0.0f;
+    for (uint8_t model_index = 0; model_index < N_MODELS_EKFGSF; model_index ++) {
+        *innovVecLength += _model_weights(model_index) * sqrtf((sq(_ekf_gsf[model_index].innov(0)) + sq(_ekf_gsf[model_index].innov(1))));
+    }
+    return true;
+}
