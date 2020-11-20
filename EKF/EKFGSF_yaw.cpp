@@ -470,13 +470,14 @@ float EKFGSF_yaw::gaussianDensity(const uint8_t model_index) const
 	return _m_2pi_inv * sqrtf(_ekf_gsf[model_index].S_det_inverse) * expf(-0.5f * normDist);
 }
 
-bool EKFGSF_yaw::getLogData(float *yaw_composite, float *yaw_variance, float yaw[N_MODELS_EKFGSF], float innov_std_dev[N_MODELS_EKFGSF], float weight[N_MODELS_EKFGSF])
+bool EKFGSF_yaw::getLogData(float *yaw_composite, float *yaw_variance, float yaw[N_MODELS_EKFGSF], float innov_mps[N_MODELS_EKFGSF], float innov_std_dev[N_MODELS_EKFGSF], float weight[N_MODELS_EKFGSF])
 {
 	if (_ekf_gsf_vel_fuse_started) {
 		*yaw_composite = _gsf_yaw;
 		*yaw_variance = _gsf_yaw_variance;
 		for (uint8_t model_index = 0; model_index < N_MODELS_EKFGSF; model_index++) {
 			yaw[model_index] = _ekf_gsf[model_index].X(2);
+			innov_mps[model_index] = _ekf_gsf[model_index].innov.norm();
 			innov_std_dev[model_index] = sqrtf(_ekf_gsf[model_index].test_ratio);
 			weight[model_index] = _model_weights(model_index);
 		}
@@ -548,25 +549,15 @@ void EKFGSF_yaw::setVelocity(const Vector2f &velocity, float accuracy)
 	_vel_data_updated = true;
 }
 
-bool EKFGSF_yaw::getInnovVecLength(float *innovVecLength)
+bool EKFGSF_yaw::getInnovVecLength(float *innovVecLength, float *innovStdDev)
 {
     if (!_ekf_gsf_vel_fuse_started) {
         return false;
     }
     *innovVecLength = 0.0f;
-    for (uint8_t model_index = 0; model_index < N_MODELS_EKFGSF; model_index ++) {
-        *innovVecLength += _model_weights(model_index) * sqrtf((sq(_ekf_gsf[model_index].innov(0)) + sq(_ekf_gsf[model_index].innov(1))));
-    }
-    return true;
-}
-
-bool EKFGSF_yaw::getInnovStdDev(float *innovStdDev)
-{
-    if (!_ekf_gsf_vel_fuse_started) {
-        return false;
-    }
     *innovStdDev = 0.0f;
     for (uint8_t model_index = 0; model_index < N_MODELS_EKFGSF; model_index ++) {
+        *innovVecLength += _model_weights(model_index) * sqrtf((sq(_ekf_gsf[model_index].innov(0)) + sq(_ekf_gsf[model_index].innov(1))));
         *innovStdDev += _model_weights(model_index) * sqrtf(_ekf_gsf[model_index].test_ratio);
     }
     return true;

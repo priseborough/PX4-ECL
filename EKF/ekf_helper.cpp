@@ -1520,13 +1520,15 @@ bool Ekf::resetYawToEKFGSF()
 {
 	// don't allow reet using the EKF-GSF estimate until the filter has started fusing velocity
 	// data and the yaw estimate has converged
-	float new_yaw, new_yaw_variance, innov_std_dev;
+	float new_yaw, new_yaw_variance, innov_std_dev, innov_vec_length;
 
-	if (!_yawEstimator.getYawData(&new_yaw, &new_yaw_variance) || !_yawEstimator.getInnovStdDev(&innov_std_dev)) {
+	if (!_yawEstimator.getYawData(&new_yaw, &new_yaw_variance) || !_yawEstimator.getInnovVecLength(&innov_vec_length, &innov_std_dev)) {
 		return false;
 	}
 
-	const bool has_converged = new_yaw_variance < sq(_params.EKFGSF_yaw_err_max) && innov_std_dev < _params.EKFGSF_innov_std_dev_max;
+	const bool has_converged = new_yaw_variance < sq(_params.EKFGSF_yaw_err_max) &&
+	innov_std_dev < _params.EKFGSF_innov_std_dev_max &&
+	innov_vec_length < _params.EKFGSF_innov_max;
 
 	if (!has_converged) {
 		return false;
@@ -1556,9 +1558,10 @@ bool Ekf::resetYawToEKFGSF()
 }
 
 bool Ekf::getDataEKFGSF(float *yaw_composite, float *yaw_variance, float yaw[N_MODELS_EKFGSF],
-			float innov_std_dev[N_MODELS_EKFGSF], float weight[N_MODELS_EKFGSF])
+			float innov_mps[N_MODELS_EKFGSF], float innov_std_dev[N_MODELS_EKFGSF],
+			float weight[N_MODELS_EKFGSF])
 {
-	return _yawEstimator.getLogData(yaw_composite, yaw_variance, yaw, innov_std_dev, weight);
+	return _yawEstimator.getLogData(yaw_composite, yaw_variance, yaw, innov_mps, innov_std_dev, weight);
 }
 
 void Ekf::runYawEKFGSF()

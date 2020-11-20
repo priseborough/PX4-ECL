@@ -43,6 +43,7 @@ public:
 	bool getLogData(float *yaw_composite,
 			float *yaw_composite_variance,
 			float yaw[N_MODELS_EKFGSF],
+			float innov_mps[N_MODELS_EKFGSF],
 			float innov_std_dev[N_MODELS_EKFGSF],
 			float weight[N_MODELS_EKFGSF]);
 
@@ -50,13 +51,9 @@ public:
     	// return false if no yaw estimate available
     	bool getYawData(float *yaw, float *yaw_variance);
 
-	// get a weighted average velocity innovation vector length in m/s that uses the GSF weights
-	// return false if innovation length is not available
-	bool getInnovVecLength(float *innovVecLength);
-
-	// get a weighted average velocity innovation vector length scaled in standard deviations that uses the GSF weights
+	// get a weighted average velocity innovation vector length scaled in in m/s and in standard deviations
 	// return false if test ratio is not available
-	bool getInnovStdDev(float *innovStdDev);
+	bool getInnovVecLength(float *innovVecLength, float *innovStdDev);
 
 private:
 
@@ -111,7 +108,7 @@ private:
 		matrix::SquareMatrix<float, 3> P; 		// covariance matrix
 		matrix::SquareMatrix<float, 2> S_inverse;	// inverse of the innovation covariance matrix
 		float S_det_inverse; 				// inverse of the innovation covariance matrix determinant
-		matrix::Vector2f innov; 			// Velocity N,E innovation (m/s)
+		matrix::Vector2f innov;				// Velocity N,E innovation (m/s)
 		float test_ratio;
 	} _ekf_gsf[N_MODELS_EKFGSF]{};
 
