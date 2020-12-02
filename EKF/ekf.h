@@ -934,6 +934,7 @@ private:
 	uint64_t _time_last_on_ground_us{0};	///< last tine we were on the ground (uSec)
 	bool _do_ekfgsf_yaw_reset{false};	// true when an emergency yaw reset has been requested
 	uint8_t _ekfgsf_yaw_reset_count{0};	// number of times the yaw has been reset to the EKF-GSF estimate
+	float _ekfgsf_vel_innov_filt{0.0f};	// filtered velocity innovation normalised wrt the pass/fail threshold
 
 	// Call once per _imu_sample_delayed update after all main EKF data fusion oeprations have been completed
 	void runYawEKFGSF();

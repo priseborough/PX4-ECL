@@ -371,8 +371,9 @@ struct parameters {
 	unsigned EKFGSF_reset_delay{1000000};	///< Number of uSec of bad innovations on main filter in immediate post-takeoff phase before yaw is reset to EKF-GSF value
 	float EKFGSF_yaw_err_max{0.262f}; 	///< Composite yaw 1-sigma uncertainty threshold used to check for convergence (rad)
 	unsigned EKFGSF_reset_count_limit{3};	///< Maximum number of times the yaw can be reset to the EKF-GSF yaw estimator value
-	float EKFGSF_innov_std_dev_max{3.0f}; 	///< Number of standard deviations used by GPS glitch check
-	float EKFGSF_innov_max{2.5f}; 	///< Vector length used by GPS glitch check
+	float EKFGSF_innov_std_dev_max{3.0f}; 	///< Number of standard deviations used by GPS glitch check (std-dev)
+	float EKFGSF_innov_max{2.5f}; 		///< Vector length used by GPS glitch check (m/s)
+	float EKFGSF_innov_tau{5.0f};		///< Decay time constant applied to innovaton level peak hold filter (sec)
 };
 
 struct stateSample {

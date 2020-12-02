@@ -1520,15 +1520,13 @@ bool Ekf::resetYawToEKFGSF()
 {
 	// don't allow reet using the EKF-GSF estimate until the filter has started fusing velocity
 	// data and the yaw estimate has converged
-	float new_yaw, new_yaw_variance, innov_std_dev, innov_vec_length;
+	float new_yaw, new_yaw_variance;
 
-	if (!_yawEstimator.getYawData(&new_yaw, &new_yaw_variance) || !_yawEstimator.getInnovVecLength(&innov_vec_length, &innov_std_dev)) {
+	if (!_yawEstimator.getYawData(&new_yaw, &new_yaw_variance)) {
 		return false;
 	}
 
-	const bool has_converged = new_yaw_variance < sq(_params.EKFGSF_yaw_err_max) &&
-	innov_std_dev < _params.EKFGSF_innov_std_dev_max &&
-	innov_vec_length < _params.EKFGSF_innov_max;
+	const bool has_converged = new_yaw_variance < sq(_params.EKFGSF_yaw_err_max) && _ekfgsf_vel_innov_filt < 1.0f;
 
 	if (!has_converged) {
 		return false;
@@ -1576,13 +1574,27 @@ void Ekf::runYawEKFGSF()
 	}
 
 	const Vector3f imu_gyro_bias = getGyroBias();
-	_yawEstimator.update(_imu_sample_delayed, _control_status.flags.in_air, TAS, imu_gyro_bias);
+	const bool run_yaw_estimators = _control_status.flags.in_air && _ekfgsf_vel_innov_filt < 1.0f;
+	_yawEstimator.update(_imu_sample_delayed, run_yaw_estimators, TAS, imu_gyro_bias);
 
 	// basic sanity check on GPS velocity data
 	if (_gps_data_ready && _gps_sample_delayed.vacc > FLT_EPSILON &&
 	    ISFINITE(_gps_sample_delayed.vel(0)) && ISFINITE(_gps_sample_delayed.vel(1))) {
 		_yawEstimator.setVelocity(_gps_sample_delayed.vel.xy(), _gps_sample_delayed.vacc);
 	}
+
+	const float filt_coef = fminf(_dt_ekf_avg / _params.EKFGSF_innov_tau, 1.0f);
+	_ekfgsf_vel_innov_filt *= (1.0f - filt_coef);
+
+	float innov_std_dev, innov_vec_length;
+	if (_yawEstimator.getInnovVecLength(&innov_vec_length, &innov_std_dev)) {
+		// apply a peak hold filter with exponential decay to the normalised test levels
+		float input = innov_std_dev / fmaxf(_params.EKFGSF_innov_std_dev_max, 1E-3f);
+		input = fminf(input, 3.0f);
+		_ekfgsf_vel_innov_filt = fmaxf(_ekfgsf_vel_innov_filt, input);
+
+	}
+
 }
 
 void Ekf::resetGpsDriftCheckFilters()
