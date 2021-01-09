@@ -482,16 +482,24 @@ bool Ekf::resetMagHeading(const Vector3f &mag_init, bool increase_yaw_var, bool 
 		return true;
 	}
 
-	if (_params.mag_fusion_type >= MAG_FUSE_TYPE_NONE) {
-		stopMagFusion();
-		return false;
-	}
-
 	// calculate the observed yaw angle and yaw variance
 	float yaw_new;
 	float yaw_new_variance = 0.0f;
 
-	if (_control_status.flags.ev_yaw) {
+	if (_params.mag_fusion_type >= MAG_FUSE_TYPE_NONE) {
+		stopMagFusion();
+		if (_params.mag_fusion_type == MAG_FUSE_TYPE_NONE && !(_params.fusion_mode & MASK_USE_GPS)) {
+			// handle special case where we are doing inertial dead reckoning for yaw
+			// and will not be able to align yaw to GPS derived value later in flight
+			yaw_new = 0.0f;
+			yaw_new_variance = sq(0.01f);
+			resetQuatStateYaw(yaw_new, yaw_new_variance, update_buffer);
+			_flt_mag_align_start_time = _imu_sample_delayed.time_us;
+			return true;
+		} else {
+			return false;
+		}
+	} else  if (_control_status.flags.ev_yaw) {
 		yaw_new = getEuler312Yaw(_ev_sample_delayed.quat);
 
 		if (increase_yaw_var) {
