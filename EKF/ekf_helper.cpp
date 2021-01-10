@@ -488,10 +488,12 @@ bool Ekf::resetMagHeading(const Vector3f &mag_init, bool increase_yaw_var, bool 
 
 	if (_params.mag_fusion_type >= MAG_FUSE_TYPE_NONE) {
 		stopMagFusion();
-		if (_params.mag_fusion_type == MAG_FUSE_TYPE_NONE && !(_params.fusion_mode & MASK_USE_GPS)) {
+		if (_params.mag_fusion_type == MAG_FUSE_TYPE_NONE &&
+		    !(_params.fusion_mode & MASK_USE_GPS) &&
+		    !(_params.fusion_mode & MASK_USE_EVYAW)) {
 			// handle special case where we are doing inertial dead reckoning for yaw
-			// and will not be able to align yaw to GPS derived value later in flight
-			yaw_new = 0.0f;
+			// and will not be able to align yaw to an external vision or GPS derived value later in flight
+			yaw_new = math::radians(_params.initial_yaw_deg);
 			yaw_new_variance = sq(0.01f);
 			resetQuatStateYaw(yaw_new, yaw_new_variance, update_buffer);
 			_flt_mag_align_start_time = _imu_sample_delayed.time_us;
@@ -1514,6 +1516,8 @@ void Ekf::stopFlowFusion()
 
 void Ekf::resetQuatStateYaw(float yaw, float yaw_variance, bool update_buffer)
 {
+	yaw = matrix::wrap_pi(yaw);
+
 	// save a copy of the quaternion state for later use in calculating the amount of reset change
 	const Quatf quat_before_reset = _state.quat_nominal;
 
@@ -1552,6 +1556,7 @@ void Ekf::resetQuatStateYaw(float yaw, float yaw_variance, bool update_buffer)
 	}
 
 	// capture the reset event
+	_last_static_yaw = yaw;
 	_state_reset_status.quat_counter++;
 }
 

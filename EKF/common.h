@@ -263,12 +263,13 @@ struct parameters {
 
 	// magnetometer fusion
 	float mag_heading_noise{3.0e-1f};	///< measurement noise used for simple heading fusion (rad)
-	float mag_noise{5.0e-2f};		///< measurement noise used for 3-axis magnetoemeter fusion (Gauss)
+	float mag_noise{5.0e-2f};		///< measurement noise used for 3-axis magnetometer fusion (Gauss)
 	float mag_declination_deg{0.0f};	///< magnetic declination (degrees)
 	float heading_innov_gate{2.6f};		///< heading fusion innovation consistency gate size (STD)
 	float mag_innov_gate{3.0f};		///< magnetometer fusion innovation consistency gate size (STD)
 	int32_t mag_declination_source{7};	///< bitmask used to control the handling of declination data
 	int32_t mag_fusion_type{0};		///< integer used to specify the type of magnetometer fusion used
+	float initial_yaw_deg{0.0f};		///< initial yaw angle to use during alignment if a yaw angle wrt true North cannot be observed directly or indirectly during operation (deg)
 	float mag_acc_gate{0.5f};		///< when in auto select mode, heading fusion will be used when manoeuvre accel is lower than this (m/sec**2)
 	float mag_yaw_rate_gate{0.25f};		///< yaw rate threshold used by mode select logic (rad/sec)
 	float quat_max_variance{0.0001f};	///< zero innovation yaw measurements will not be fused when the sum of quaternion variance is less than this
