@@ -488,9 +488,11 @@ bool Ekf::resetMagHeading(const Vector3f &mag_init, bool increase_yaw_var, bool 
 
 	if (_params.mag_fusion_type >= MAG_FUSE_TYPE_NONE) {
 		stopMagFusion();
-		if (_params.mag_fusion_type == MAG_FUSE_TYPE_NONE && !(_params.fusion_mode & MASK_USE_GPS)) {
+		if (_params.mag_fusion_type == MAG_FUSE_TYPE_NONE &&
+		    !(_params.fusion_mode & MASK_USE_GPS) &&
+		    !(_params.fusion_mode & MASK_USE_EVYAW)) {
 			// handle special case where we are doing inertial dead reckoning for yaw
-			// and will not be able to align yaw to GPS derived value later in flight
+			// and will not be able to align yaw to an external vision or GPS derived value later in flight
 			yaw_new = math::radians(_params.initial_yaw_deg);
 			yaw_new_variance = sq(0.01f);
 			resetQuatStateYaw(yaw_new, yaw_new_variance, update_buffer);
