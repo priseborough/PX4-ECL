@@ -475,7 +475,7 @@ bool Ekf::realignYawGPS()
 }
 
 // Reset heading and magnetic field states
-bool Ekf::resetMagHeading(const Vector3f &mag_init, bool increase_yaw_var, bool update_buffer)
+bool Ekf::resetMagHeading(const Vector3f &mag_init, bool update_covariance, bool update_buffer)
 {
 	// prevent a reset being performed more than once on the same frame
 	if (_imu_sample_delayed.time_us == _flt_mag_align_start_time) {
@@ -494,7 +494,7 @@ bool Ekf::resetMagHeading(const Vector3f &mag_init, bool increase_yaw_var, bool 
 	if (_control_status.flags.ev_yaw) {
 		yaw_new = getEuler312Yaw(_ev_sample_delayed.quat);
 
-		if (increase_yaw_var) {
+		if (update_covariance) {
 			yaw_new_variance = fmaxf(_ev_sample_delayed.angVar, sq(1.0e-2f));
 		}
 
@@ -506,7 +506,7 @@ bool Ekf::resetMagHeading(const Vector3f &mag_init, bool increase_yaw_var, bool 
 		const Vector3f mag_earth_pred = R_to_earth * mag_init;
 		yaw_new = -atan2f(mag_earth_pred(1), mag_earth_pred(0)) + getMagDeclination();
 
-		if (increase_yaw_var) {
+		if (update_covariance) {
 			yaw_new_variance = sq(fmaxf(_params.mag_heading_noise, 1.0e-2f));
 		}
 
@@ -519,7 +519,7 @@ bool Ekf::resetMagHeading(const Vector3f &mag_init, bool increase_yaw_var, bool 
 		return false;
 	}
 
-	// update quaternion states and corresponding covarainces
+	// update quaternion states and corresponding covariances
 	resetQuatStateYaw(yaw_new, yaw_new_variance, update_buffer);
 
 	// set the earth magnetic field states using the updated rotation
@@ -1526,9 +1526,12 @@ void Ekf::resetQuatStateYaw(float yaw, float yaw_variance, bool update_buffer)
 	// record the state change
 	_state_reset_status.quat_change = q_error;
 
-	// update the yaw angle variance
-	if (yaw_variance > FLT_EPSILON) {
-		increaseQuatYawErrVariance(yaw_variance);
+	// reset the variances and covariances for the quaternion states
+	if (yaw_variance > 0.0f) {
+		const float tilt_variance = tiltVariance();
+		yaw_variance = fmaxf(yaw_variance, sq(0.01f));
+		Vector3f angular_variance_ef = Vector3f(tilt_variance, tilt_variance, yaw_variance);
+		predictCovariance(&angular_variance_ef);
 	}
 
 	// add the reset amount to the output observer buffered data

@@ -114,7 +114,7 @@ bool Ekf::update()
 	if (_imu_updated) {
 		// perform state and covariance prediction for the main filter
 		predictState();
-		predictCovariance();
+		predictCovariance(nullptr);
 
 		// control fusion of observation data
 		controlFusionModes();
