@@ -531,8 +531,12 @@ private:
 	// predict ekf state
 	void predictState();
 
-	// predict ekf covariance
-	void predictCovariance();
+	// Predicts the ekf covariance matrix forward in time
+	// Argument is a pointer to a vector defining the variance of the orientation in earth frame
+	// which will result in a complete reset of the quaternion covariances to values consistent
+	// with the vector of variances.
+	// If a null pointer is passed, then the reset will not be performed.
+	void predictCovariance(Vector3f *rot_vec_var_ef_ptr);
 
 	// ekf sequential fusion of magnetometer measurements
 	void fuseMag();
@@ -649,7 +653,7 @@ private:
 
 	// reset the heading and magnetic field states using the declination and magnetometer/external vision measurements
 	// return true if successful
-	bool resetMagHeading(const Vector3f &mag_init, bool increase_yaw_var = true, bool update_buffer = true);
+	bool resetMagHeading(const Vector3f &mag_init, bool update_covariance = true, bool update_buffer = true);
 
 	// Do a forced re-alignment of the yaw angle to align with the horizontal velocity vector from the GPS.
 	// It is used to align the yaw angle after launch or takeoff for fixed wing vehicle.
@@ -878,6 +882,10 @@ private:
 
 	// perform a limited reset of the wind state covariances
 	void resetWindCovariance();
+
+	// Return the variance of the tilt angle in rad **2, which for small roll and pitch angles
+	// is equivalent to the sum of the roll and pitch variances
+	float tiltVariance();
 
 	// perform a reset of the wind states
 	void resetWindStates();
