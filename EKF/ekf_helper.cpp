@@ -442,7 +442,7 @@ bool Ekf::realignYawGPS()
 		const float yaw_variance_new = sq(asinf(sineYawError));
 
 		// Apply updated yaw and yaw variance to states and covariances
-		resetQuatStateYaw(yaw_new, yaw_variance_new, true);
+		resetQuatStateYaw(yaw_new, yaw_variance_new, true, true);
 
 		// Use the last magnetometer measurements to reset the field states
 		_state.mag_B.zero();
@@ -495,7 +495,7 @@ bool Ekf::resetMagHeading(const Vector3f &mag_init, bool update_covariance, bool
 		yaw_new = getEuler312Yaw(_ev_sample_delayed.quat);
 
 		if (update_covariance) {
-			yaw_new_variance = fmaxf(_ev_sample_delayed.angVar, sq(1.0e-2f));
+			yaw_new_variance = _ev_sample_delayed.angVar;
 		}
 
 	} else if (_params.mag_fusion_type <= MAG_FUSE_TYPE_3D) {
@@ -507,7 +507,7 @@ bool Ekf::resetMagHeading(const Vector3f &mag_init, bool update_covariance, bool
 		yaw_new = -atan2f(mag_earth_pred(1), mag_earth_pred(0)) + getMagDeclination();
 
 		if (update_covariance) {
-			yaw_new_variance = sq(fmaxf(_params.mag_heading_noise, 1.0e-2f));
+			yaw_new_variance = sq(_params.mag_heading_noise);
 		}
 
 	} else if (_params.mag_fusion_type == MAG_FUSE_TYPE_INDOOR && _is_yaw_fusion_inhibited) {
@@ -520,7 +520,7 @@ bool Ekf::resetMagHeading(const Vector3f &mag_init, bool update_covariance, bool
 	}
 
 	// update quaternion states and corresponding covariances
-	resetQuatStateYaw(yaw_new, yaw_new_variance, update_buffer);
+	resetQuatStateYaw(yaw_new, yaw_new_variance, update_covariance, update_buffer);
 
 	// set the earth magnetic field states using the updated rotation
 	_state.mag_I = _R_to_earth * mag_init;
@@ -1444,9 +1444,8 @@ void Ekf::startEvYawFusion()
 {
 	// reset the yaw angle to the value from the vision quaternion
 	const float yaw = getEuler321Yaw(_ev_sample_delayed.quat);
-	const float yaw_variance = fmaxf(_ev_sample_delayed.angVar, sq(1.0e-2f));
 
-	resetQuatStateYaw(yaw, yaw_variance, true);
+	resetQuatStateYaw(yaw, _ev_sample_delayed.angVar, true, true);
 
 	// flag the yaw as aligned
 	_control_status.flags.yaw_align = true;
@@ -1504,7 +1503,7 @@ void Ekf::stopFlowFusion()
 	_optflow_test_ratio = 0.0f;
 }
 
-void Ekf::resetQuatStateYaw(float yaw, float yaw_variance, bool update_buffer)
+void Ekf::resetQuatStateYaw(float yaw, float yaw_variance, bool update_covariance, bool update_buffer)
 {
 	// save a copy of the quaternion state for later use in calculating the amount of reset change
 	const Quatf quat_before_reset = _state.quat_nominal;
@@ -1527,9 +1526,9 @@ void Ekf::resetQuatStateYaw(float yaw, float yaw_variance, bool update_buffer)
 	_state_reset_status.quat_change = q_error;
 
 	// reset the variances and covariances for the quaternion states
-	if (yaw_variance > 0.0f) {
+	if (update_covariance) {
 		const float tilt_variance = tiltVariance();
-		yaw_variance = fmaxf(yaw_variance, sq(0.01f));
+		yaw_variance = fmaxf(yaw_variance, YAW_OBS_VARIANCE_MIN);
 		Vector3f angular_variance_ef = Vector3f(tilt_variance, tilt_variance, yaw_variance);
 		predictCovariance(&angular_variance_ef);
 	}
@@ -1569,7 +1568,7 @@ bool Ekf::resetYawToEKFGSF()
 		return false;
 	}
 
-	resetQuatStateYaw(new_yaw, new_yaw_variance, true);
+	resetQuatStateYaw(new_yaw, new_yaw_variance, true, true);
 
 	// reset velocity and position states to GPS - if yaw is fixed then the filter should start to operate correctly
 	resetVelocity();

@@ -425,7 +425,7 @@ void Ekf::fuseYaw321(float yaw, float yaw_variance, bool zero_innovation)
 	const float &q2 = _state.quat_nominal(2);
 	const float &q3 = _state.quat_nominal(3);
 
-	const float R_YAW = fmaxf(yaw_variance, 1.0e-4f);
+	const float R_YAW = fmaxf(yaw_variance, YAW_OBS_VARIANCE_MIN);
 	const float measurement = wrap_pi(yaw);
 
 	// calculate 321 yaw observation matrix
@@ -505,7 +505,7 @@ void Ekf::fuseYaw312(float yaw, float yaw_variance, bool zero_innovation)
 	const float q2 = _state.quat_nominal(2);
 	const float q3 = _state.quat_nominal(3);
 
-	const float R_YAW = fmaxf(yaw_variance, 1.0e-4f);
+	const float R_YAW = fmaxf(yaw_variance, YAW_OBS_VARIANCE_MIN);
 	const float measurement = wrap_pi(yaw);
 
 	// calculate 312 yaw observation matrix

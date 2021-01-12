@@ -212,6 +212,8 @@ enum TerrainFusionMask : int32_t {
 // ground effect compensation
 #define GNDEFFECT_TIMEOUT	10E6	///< Maximum period of time that ground effect protection will be active after it was last turned on (uSec)
 
+#define YAW_OBS_VARIANCE_MIN	1.0e-4f ///< minimum angular error variance allowed for any yaw observation (rad**2)
+
 struct parameters {
 	// measurement source control
 	int32_t fusion_mode{MASK_USE_GPS};		///< bitmasked integer that selects which aiding sources will be used
