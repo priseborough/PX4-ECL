@@ -374,8 +374,8 @@ bool Ekf::calcOptFlowBodyRateComp()
 float Ekf::calcOptFlowMeasVar()
 {
 	// calculate the observation noise variance - scaling noise linearly across flow quality range
-	const float R_LOS_best = fmaxf(_params.flow_noise, 0.05f);
-	const float R_LOS_worst = fmaxf(_params.flow_noise_qual_min, 0.05f);
+	const float R_LOS_best = fmaxf(_params.flow_noise, 0.01f);
+	const float R_LOS_worst = fmaxf(_params.flow_noise_qual_min, 0.01f);
 
 	// calculate a weighting that varies between 1 when flow quality is best and 0 when flow quality is worst
 	float weighting = (255.0f - (float)_params.flow_qual_min);
