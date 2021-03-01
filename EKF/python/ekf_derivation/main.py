@@ -489,58 +489,6 @@ def yaw_estimator():
     yaw_estimator_observation_generator.write_matrix(Matrix(P_new_s), "_ekf_gsf[model_index].P", True)
     yaw_estimator_observation_generator.close()
 
-def quaternion_error_propagation():
-    # quaternion state vector
-    q0, q1, q2, q3 = symbols("q0 q1 q2 q3", real=True)
-    q = Matrix([q0, q1, q2, q3])
-
-    # truth gravity unit vector in body frame
-    R_to_earth = quat2Rot(q)
-    R_to_body = R_to_earth.T
-    gravity_ef = Matrix([0,0,1])
-    gravity_bf = R_to_body * gravity_ef
-
-    # perturbations to quaternion state vector q
-    dq0, dq1, dq2, dq3 = symbols("dq0 dq1 dq2 dq3", real=True)
-    q_delta = Matrix([dq0, dq1, dq2, dq3])
-
-    # apply perturbations to state vector
-    q_perturbed = q + q_delta
-
-    # gravity unit vector in body frame after quaternion perturbation
-    R_to_earth_perturbed = quat2Rot(q_perturbed)
-    R_to_body_perturbed = R_to_earth_perturbed.T
-    gravity_bf_perturbed = R_to_body_perturbed * gravity_ef
-
-    # calculate the angular difference between the perturbed and unperturbed body frame gravity unit vectors
-    # assuming small angles
-    tilt_error_bf = gravity_bf.cross(gravity_bf_perturbed)
-
-    # calculate the derivative of the perturbation rotation vector wrt the quaternion perturbations
-    J = tilt_error_bf.jacobian(q_delta)
-
-    # remove second order terms
-    # we don't want the error deltas to appear in the final result
-    J.subs(dq0,0)
-    J.subs(dq1,0)
-    J.subs(dq2,0)
-    J.subs(dq3,0)
-
-    # covariance matrix for quaternion states
-    P = create_symmetric_cov_matrix(4)
-
-    # discard off diagonals
-    P_diag = diag(P[0,0],P[1,1],P[2,2],P[3,3])
-
-    # rotate quaternion covariances into rotation vector state space
-    P_rot_vec = J * P_diag * J.transpose()
-    P_rot_vec_simple = cse(P_rot_vec, symbols("PS0:400"), optimizations='basic')
-
-    quat_code_generator = CodeGenerator("./generated/tilt_error_cov_mat_generated.cpp")
-    quat_code_generator.write_subexpressions(P_rot_vec_simple[0])
-    quat_code_generator.write_matrix(Matrix(P_rot_vec_simple[1]), "tiltErrCovMat", False, "[", "]")
-    quat_code_generator.close()
-
 def generate_code():
     print('Starting code generation:')
     print('Creating symbolic variables ...')
@@ -674,8 +622,6 @@ def generate_code():
     body_frame_accel_observation(P,state,R_to_body,vx,vy,vz,wx,wy)
     print('Generating yaw estimator code ...')
     yaw_estimator()
-    print('Computing tilt error covariance matrix ...')
-    quaternion_error_propagation()
     print('Code generation finished!')
 
 

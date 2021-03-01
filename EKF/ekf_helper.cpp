@@ -456,7 +456,7 @@ bool Ekf::realignYawGPS()
 }
 
 // Reset heading and magnetic field states
-bool Ekf::resetMagHeading(const Vector3f &mag_init, bool update_covariance, bool update_buffer)
+bool Ekf::resetMagHeading(const Vector3f &mag_init, bool increase_yaw_var, bool update_buffer)
 {
 	// prevent a reset being performed more than once on the same frame
 	if (_imu_sample_delayed.time_us == _flt_mag_align_start_time) {
@@ -474,11 +474,9 @@ bool Ekf::resetMagHeading(const Vector3f &mag_init, bool update_covariance, bool
 		    !(_params.fusion_mode & MASK_USE_EVYAW)) {
 			// handle special case where we are doing inertial dead reckoning for yaw
 			// and will not be able to align yaw to an external vision or GPS derived value later in flight
-			_last_static_yaw = matrix::wrap_pi(math::radians(_params.initial_yaw_deg));
-			if (update_covariance) {
-				yaw_new_variance = sq(0.05f);
-			}
-			resetQuatStateYaw(_last_static_yaw, yaw_new_variance, update_buffer);
+			yaw_new = math::radians(_params.initial_yaw_deg);
+			yaw_new_variance = sq(0.01f);
+			resetQuatStateYaw(yaw_new, yaw_new_variance, update_buffer);
 			_flt_mag_align_start_time = _imu_sample_delayed.time_us;
 			return true;
 		} else {
@@ -487,7 +485,7 @@ bool Ekf::resetMagHeading(const Vector3f &mag_init, bool update_covariance, bool
 	} else  if (_control_status.flags.ev_yaw) {
 		yaw_new = getEuler312Yaw(_ev_sample_delayed.quat);
 
-		if (update_covariance) {
+		if (increase_yaw_var) {
 			yaw_new_variance = fmaxf(_ev_sample_delayed.angVar, sq(1.0e-2f));
 		}
 
@@ -499,7 +497,7 @@ bool Ekf::resetMagHeading(const Vector3f &mag_init, bool update_covariance, bool
 		const Vector3f mag_earth_pred = R_to_earth * mag_init;
 		yaw_new = -atan2f(mag_earth_pred(1), mag_earth_pred(0)) + getMagDeclination();
 
-		if (update_covariance) {
+		if (increase_yaw_var) {
 			yaw_new_variance = sq(fmaxf(_params.mag_heading_noise, 1.0e-2f));
 		}
 
@@ -1554,12 +1552,9 @@ void Ekf::resetQuatStateYaw(float yaw, float yaw_variance, bool update_buffer)
 	// record the state change
 	_state_reset_status.quat_change = q_error;
 
-	// reset the variances and covariances for the quaternion states
-	if (yaw_variance > 0.0f) {
-		const float tilt_variance = tiltVariance();
-		yaw_variance = fmaxf(yaw_variance, sq(0.01f));
-		Vector3f angular_variance_ef = Vector3f(tilt_variance, tilt_variance, yaw_variance);
-		predictCovariance(&angular_variance_ef);
+	// update the yaw angle variance
+	if (yaw_variance > FLT_EPSILON) {
+		increaseQuatYawErrVariance(yaw_variance);
 	}
 
 	// add the reset amount to the output observer buffered data
