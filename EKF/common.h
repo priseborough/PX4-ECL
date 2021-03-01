@@ -210,7 +210,7 @@ enum TerrainFusionMask : int32_t {
 #define BADACC_BIAS_PNOISE	4.9f	///< The delta velocity process noise is set to this when accel data is declared bad (m/sec**2)
 
 // ground effect compensation
-#define GNDEFFECT_TIMEOUT	10E6	///< Maximum period of time that ground effect protection will be active after it was last turned on (uSec)
+#define GNDEFFECT_TIMEOUT	1E6	///< Maximum period of time that ground effect protection will be active after it was last turned on (uSec)
 
 struct parameters {
 	// measurement source control
