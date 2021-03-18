@@ -49,8 +49,9 @@ void Ekf::controlMagFusion()
 	// When operating without a magnetometer and no other source of yaw aiding is active,
 	// yaw fusion is run selectively to enable yaw gyro bias learning when stationary on
 	// ground and to prevent uncontrolled yaw variance growth
+	// Use a 14Hz rate to avoid coinciding with fusion of other sensors
 	if (_params.mag_fusion_type == MAG_FUSE_TYPE_NONE) {
-		if (noOtherYawAidingThanMag())
+		if (isTimedOut(_time_yaw_fused, (uint64_t)71429) && noOtherYawAidingThanMag())
 		{
 			_is_yaw_fusion_inhibited = true;
 			fuseHeading();

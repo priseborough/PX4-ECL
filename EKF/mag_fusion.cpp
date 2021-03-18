@@ -697,6 +697,7 @@ void Ekf::updateQuaternion(const float innovation, const float variance, const f
 		// apply the state corrections
 		fuse(Kfusion, _heading_innov);
 
+		_time_yaw_fused = _time_last_imu;
 	}
 }
 
@@ -747,6 +748,7 @@ void Ekf::fuseHeading()
 			// The yaw measurement cannot be trusted but we need to fuse something to prevent a badly
 			// conditioned covariance matrix developing over time.
 			if (!_control_status.flags.vehicle_at_rest) {
+				_last_static_yaw = predicted_hdg;
 				// Vehicle is not at rest so fuse a zero innovation if necessary to prevent
 				// unconstrained quaternion variance growth and record the predicted heading
 				// to use as an observation when movement ceases.
@@ -755,10 +757,9 @@ void Ekf::fuseHeading()
 				if (sumQuatVar > _params.quat_max_variance) {
 					fuse_zero_innov = true;
 					R_YAW = 0.25f;
-
+				} else {
+					return;
 				}
-				_last_static_yaw = predicted_hdg;
-
 			} else {
 				// Vehicle is at rest so use the last moving prediction as an observation
 				// to prevent the heading from drifting and to enable yaw gyro bias learning
@@ -798,6 +799,7 @@ void Ekf::fuseHeading()
 			// The yaw measurement cannot be trusted but we need to fuse something to prevent a badly
 			// conditioned covariance matrix developing over time.
 			if (!_control_status.flags.vehicle_at_rest) {
+				_last_static_yaw = predicted_hdg;
 				// Vehicle is not at rest so fuse a zero innovation if necessary to prevent
 				// unconstrained quaterniion variance growth and record the predicted heading
 				// to use as an observation when movement ceases.
@@ -806,9 +808,9 @@ void Ekf::fuseHeading()
 				if (sumQuatVar > _params.quat_max_variance) {
 					fuse_zero_innov = true;
 					R_YAW = 0.25f;
-
+				} else {
+					return;
 				}
-				_last_static_yaw = predicted_hdg;
 
 			} else {
 				// Vehicle is at rest so use the last moving prediction as an observation

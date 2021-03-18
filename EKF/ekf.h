@@ -390,6 +390,7 @@ private:
 	bool _mag_decl_cov_reset{false};	///< true after the fuseDeclination() function has been used to modify the earth field covariances after a magnetic field reset event.
 	bool _synthetic_mag_z_active{false};	///< true if we are generating synthetic magnetometer Z measurements
 	bool _non_mag_yaw_aiding_running_prev{false};  ///< true when heading is being fused from other sources that are not the magnetometer (for example EV or GPS).
+	uint64_t _time_yaw_fused{0};		///< last system time in usec that a yaw measurement was fused
 
 	bool _is_yaw_fusion_inhibited{false};		///< true when yaw sensor use is being inhibited
 
