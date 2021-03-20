@@ -65,7 +65,7 @@ void EstimatorInterface::setIMUData(const imuSample &imu_sample)
 
 	// Do not change order of computeVibrationMetric and checkIfVehicleAtRest
 	computeVibrationMetric(imu_sample);
-	_control_status.flags.vehicle_at_rest = checkIfVehicleAtRest(dt, imu_sample);
+	_control_status.flags.vehicle_at_rest = checkIfVehicleAtRest(imu_sample);
 
 	_imu_updated = _imu_down_sampler.update(imu_sample);
 
@@ -102,7 +102,7 @@ void EstimatorInterface::computeVibrationMetric(const imuSample &imu)
 	_vibe_metrics(2) = 0.99f * _vibe_metrics(2) + 0.01f * temp.norm();
 }
 
-bool EstimatorInterface::checkIfVehicleAtRest(float dt, const imuSample &imu)
+bool EstimatorInterface::checkIfVehicleAtRest(const imuSample &imu)
 {
 	// detect if the vehicle is not moving when on ground
 	if (!_control_status.flags.in_air) {

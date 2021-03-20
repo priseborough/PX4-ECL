@@ -386,7 +386,7 @@ private:
 	inline void setDragData(const imuSample &imu);
 
 	inline void computeVibrationMetric(const imuSample &imu);
-	inline bool checkIfVehicleAtRest(float dt, const imuSample &imu);
+	inline bool checkIfVehicleAtRest(const imuSample &imu);
 
 	void printBufferAllocationFailed(const char *buffer_name);
 
