@@ -721,6 +721,9 @@ void Ekf::fuseHeading()
 		R_YAW = 0.01f;
 	}
 
+	// clear this by default and set by exception
+	_is_fusing_static_yaw = false;
+
 	// update transformation matrix from body to world frame using the current state estimate
 	_R_to_earth = Dcmf(_state.quat_nominal);
 
@@ -765,6 +768,7 @@ void Ekf::fuseHeading()
 				// to prevent the heading from drifting and to enable yaw gyro bias learning
 				// before takeoff.
 				measured_hdg = _last_static_yaw;
+				_is_fusing_static_yaw = true;
 
 			}
 		} else {
@@ -817,6 +821,7 @@ void Ekf::fuseHeading()
 				// to prevent the heading from drifting and to enable yaw gyro bias learning
 				// before takeoff.
 				measured_hdg = _last_static_yaw;
+				_is_fusing_static_yaw = true;
 
 			}
 		} else {

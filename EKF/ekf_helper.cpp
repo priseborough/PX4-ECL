@@ -974,7 +974,16 @@ void Ekf::fuse(const Vector24f &K, float innovation)
 	_state.quat_nominal.normalize();
 	_state.vel -= K.slice<3, 1>(4, 0) * innovation;
 	_state.pos -= K.slice<3, 1>(7, 0) * innovation;
-	_state.delta_ang_bias -= K.slice<3, 1>(10, 0) * innovation;
+	if (!_yaw_angle_observable && !_is_fusing_static_yaw) {
+		// Don't modify a poorly observable gyro bias state
+		for (uint8_t index=0; index<3; index++) {
+			if (index != _imu_yaw_index) {
+				_state.delta_ang_bias(0) -= K(10) * innovation;
+			}
+		}
+	} else {
+		_state.delta_ang_bias -= K.slice<3, 1>(10, 0) * innovation;
+	}
 	_state.delta_vel_bias -= K.slice<3, 1>(13, 0) * innovation;
 	_state.mag_I -= K.slice<3, 1>(16, 0) * innovation;
 	_state.mag_B -= K.slice<3, 1>(19, 0) * innovation;

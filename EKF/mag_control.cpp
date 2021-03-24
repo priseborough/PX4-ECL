@@ -196,7 +196,20 @@ void Ekf::checkYawAngleObservability()
 				: _accel_lpf_NE.norm() > 2.0f * _params.mag_acc_gate;
 
 	_yaw_angle_observable = _yaw_angle_observable
-				&& (_control_status.flags.gps || _control_status.flags.ev_pos); // Do we have to add ev_vel here?
+				&& (_control_status.flags.gps || _control_status.flags.ev_pos || _control_status.flags.ev_vel);
+
+	// determine which IMU axis is most aligned with the yaw vector
+	if (!_yaw_angle_observable) {
+		float max_axis_cosine = 0.0f;
+		for (uint8_t index=0; index<3; index++) {
+			const float axis_cosine = fabsf(_R_to_earth(2,index));
+			if (axis_cosine > max_axis_cosine) {
+				max_axis_cosine = axis_cosine;
+				_imu_yaw_index = index;
+			}
+		}
+	}
+
 }
 
 void Ekf::checkMagBiasObservability()

@@ -381,6 +381,7 @@ private:
 	float _yaw_rate_lpf_ef{0.0f};		///< Filtered angular rate about earth frame D axis (rad/sec)
 	bool _mag_bias_observable{false};	///< true when there is enough rotation to make magnetometer bias errors observable
 	bool _yaw_angle_observable{false};	///< true when there is enough horizontal acceleration to make yaw observable
+	uint8_t _imu_yaw_index{2};		///< index of IMU axis most aligned with the yaw vector
 	uint64_t _time_yaw_started{0};		///< last system time in usec that a yaw rotation manoeuvre was detected
 	uint8_t _num_bad_flight_yaw_events{0};	///< number of times a bad heading has been detected in flight and required a yaw reset
 	uint64_t _mag_use_not_inhibit_us{0};	///< last system time in usec before magnetometer use was inhibited
@@ -392,7 +393,8 @@ private:
 	bool _non_mag_yaw_aiding_running_prev{false};  ///< true when heading is being fused from other sources that are not the magnetometer (for example EV or GPS).
 	uint64_t _time_yaw_fused{0};		///< last system time in usec that a yaw measurement was fused
 
-	bool _is_yaw_fusion_inhibited{false};		///< true when yaw sensor use is being inhibited
+	bool _is_yaw_fusion_inhibited{false};	///< true when yaw sensor use is being inhibited
+	bool _is_fusing_static_yaw{false};	///< true when a static yaw is being fused to prevent yaw drift and learn yaw gyro bias
 
 	SquareMatrix24f P;	///< state covariance matrix
 
