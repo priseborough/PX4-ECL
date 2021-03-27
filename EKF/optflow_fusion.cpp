@@ -96,7 +96,7 @@ void Ekf::fuseOptFlow()
 
 	// use a larger observation variance before and just after takeoff to better handle the large innovations
 	// that can occur at this time
-	if (_control_status.flags.in_air && !_flow_tkoff_complete && heightAboveGndEst > _params.flow_valid_hgt_min) {
+	if (_control_status.flags.in_air && !_flow_tkoff_complete && heightAboveGndEst > _flow_min_distance) {
 		_flow_tkoff_complete = true;
 		_flow_tkoff_complete_time_us = _imu_sample_delayed.time_us;
 	} else if (!_control_status.flags.in_air) {

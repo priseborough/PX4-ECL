@@ -307,7 +307,6 @@ struct parameters {
 	float flow_noise_on_ground{0.5f};	///< observation noise for optical flow LOS rate measurements used when on ground and just after takeoff (rad/sec)
 	int32_t flow_qual_min{1};		///< minimum acceptable quality integer from  the flow sensor
 	float flow_innov_gate{3.0f};		///< optical flow fusion innovation consistency gate size (STD)
-	float flow_valid_hgt_min{0.3f};		///< The optical flow sensor is unreliable below this height (m)
 
 	// these parameters control the strictness of GPS quality checks used to determine if the GPS is
 	// good enough to set a local origin and commence aiding
