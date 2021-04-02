@@ -463,6 +463,8 @@ private:
 	bool _flow_tkoff_complete{false};	///< true when the takeoff has completed and the vehicle has climbed above a height where the flow sensor is reliable
 	uint64_t _flow_tkoff_complete_time_us{0};	///< system time that _flow_tkoff_complete was set to true (uSec)
 
+	// // optical flow debug
+	// float _flow_innov_rss{0.0f};
 
 	// output predictor states
 	Vector3f _delta_angle_corr;	///< delta angle correction vector (rad)

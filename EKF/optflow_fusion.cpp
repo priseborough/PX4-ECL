@@ -249,6 +249,15 @@ void Ekf::fuseOptFlow()
 	}
 	const float HK95 = HK4/_flow_innov_var(1);
 
+	// // optical flow replay debug
+	// if (range > 0.3f) {
+	// 	_flow_innov_rss += sq(_flow_innov(0)) + sq(_flow_innov(1));
+	// }
+	// static uint64_t time_stamp_us=0;
+	// if (_imu_sample_delayed.time_us - time_stamp_us > 1000000) {
+	// 	time_stamp_us = _imu_sample_delayed.time_us;
+	// 	printf("flow_innov_rss = %e, EKF2_OF_DELAY=%i\n",(double)_flow_innov_rss,(int)_params.flow_delay_ms);
+	// }
 
 	// run the innovation consistency check and record result
 	bool flow_fail = false;
