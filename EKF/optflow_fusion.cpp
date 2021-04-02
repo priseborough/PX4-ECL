@@ -70,7 +70,8 @@ void Ekf::fuseOptFlow()
 
 	// calculate the velocity of the sensor relative to the imu in body frame
 	// Note: _flow_sample_delayed.gyro_xyz is the negative of the body angular velocity, thus use minus sign
-	const Vector3f vel_rel_imu_body = Vector3f(-_flow_sample_delayed.gyro_xyz / _flow_sample_delayed.dt) % pos_offset_body;
+	const Vector3f flow_gyro_xyz = Vector3f(-_flow_sample_delayed.gyro_xyz / _flow_sample_delayed.dt);
+	const Vector3f vel_rel_imu_body = flow_gyro_xyz % pos_offset_body;
 
 	// calculate the velocity of the sensor in the earth frame
 	const Vector3f vel_rel_earth = _state.vel + _R_to_earth * vel_rel_imu_body;
@@ -185,9 +186,10 @@ void Ekf::fuseOptFlow()
 	// const float HK50 = HK4/(HK25*HK43*HK46 + HK33*HK43*HK45 + HK37*HK43*HK44 + HK38*HK42*HK43 + HK39*HK43*HK49 + HK40*HK43*HK47 + HK41*HK43*HK48 + R_LOS);
 
 	// calculate innovation variance for X axis observation and protect against a badly conditioned calculation
-	_flow_innov_var(0) = (HK25*HK43*HK46 + HK33*HK43*HK45 + HK37*HK43*HK44 + HK38*HK42*HK43 + HK39*HK43*HK49 + HK40*HK43*HK47 + HK41*HK43*HK48 + R_LOS);
+	const float R_LOS_X = R_LOS + sq(flow_gyro_xyz(0) * _params._flow_ang_rate_error_frac);
+	_flow_innov_var(0) = (HK25*HK43*HK46 + HK33*HK43*HK45 + HK37*HK43*HK44 + HK38*HK42*HK43 + HK39*HK43*HK49 + HK40*HK43*HK47 + HK41*HK43*HK48 + R_LOS_X);
 
-	if (_flow_innov_var(0) < R_LOS) {
+	if (_flow_innov_var(0) < R_LOS_X) {
 		// we need to reinitialise the covariance matrix and abort this fusion step
 		initialiseCovariance();
 		return;
@@ -241,8 +243,9 @@ void Ekf::fuseOptFlow()
 	// const float HK95 = HK4/(HK43*HK74*HK90 + HK43*HK77*HK89 + HK43*HK79*HK88 + HK43*HK80*HK87 + HK66*HK92*HK94 + HK68*HK91*HK92 + HK70*HK92*HK93 + R_LOS);
 
 	// calculate innovation variance for Y axis observation and protect against a badly conditioned calculation
-	_flow_innov_var(1) = (HK43*HK74*HK90 + HK43*HK77*HK89 + HK43*HK79*HK88 + HK43*HK80*HK87 + HK66*HK92*HK94 + HK68*HK91*HK92 + HK70*HK92*HK93 + R_LOS);
-	if (_flow_innov_var(1) < R_LOS) {
+	const float R_LOS_Y = R_LOS + sq(flow_gyro_xyz(1) * _params._flow_ang_rate_error_frac);
+	_flow_innov_var(1) = (HK43*HK74*HK90 + HK43*HK77*HK89 + HK43*HK79*HK88 + HK43*HK80*HK87 + HK66*HK92*HK94 + HK68*HK91*HK92 + HK70*HK92*HK93 + R_LOS_Y);
+	if (_flow_innov_var(1) < R_LOS_Y) {
 		// we need to reinitialise the covariance matrix and abort this fusion step
 		initialiseCovariance();
 		return;
