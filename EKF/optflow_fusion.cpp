@@ -95,23 +95,11 @@ void Ekf::fuseOptFlow()
 	// calculate the optical flow observation variance
 	float R_LOS = calcOptFlowMeasVar();
 
-	// use a larger observation variance before and just after takeoff to better handle the large innovations
-	// that can occur at this time
-	if (_control_status.flags.in_air && !_flow_tkoff_complete && heightAboveGndEst > _flow_min_distance) {
-		_flow_tkoff_complete = true;
-		_flow_tkoff_complete_time_us = _imu_sample_delayed.time_us;
-	} else if (!_control_status.flags.in_air) {
-		_flow_tkoff_complete = false;
-		R_LOS = sq(fmaxf(_params.flow_noise_qual_min, _params.flow_noise_on_ground));
-	} else if (_imu_sample_delayed.time_us - _flow_tkoff_complete_time_us < 5000000) {
-		// fade observaton variance to in flight value over 5 seconds to avoid
-		// failing the innovation consistency test at the switchover time
-		const float scaler = float(_imu_sample_delayed.time_us - _flow_tkoff_complete_time_us) / (float)5000000;
-		R_LOS = sq(fmaxf(_params.flow_noise_qual_min, _params.flow_noise_on_ground))  * (1.0f - scaler) + R_LOS * scaler;
-	}
-
 	// calculate range from focal point to centre of image
 	const float range = heightAboveGndEst / earth_to_body(2, 2); // absolute distance to the frame region in view
+
+	// account for potential loss of flow accuracy due to height rate
+	R_LOS += _params._flow_rng_rate_noise_scaler * fabsf(vd /range);
 
 	// calculate optical LOS rates using optical flow rates that have had the body angular rate contribution removed
 	// correct for gyro bias errors in the data used to do the motion compensation
