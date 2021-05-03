@@ -643,24 +643,40 @@ void Ekf::controlGpsFusion()
 		// Only use GPS data for position and velocity aiding if enabled
 		if (_control_status.flags.gps) {
 
-			Vector2f gps_vel_innov_gates; // [horizontal vertical]
-			Vector2f gps_pos_innov_gates; // [horizontal vertical]
-			Vector3f gps_vel_obs_var;
-			Vector3f gps_pos_obs_var;
-
-			// correct velocity for offset relative to IMU
 			const Vector3f pos_offset_body = _params.gps_pos_body - _params.imu_pos_body;
-			const Vector3f vel_offset_body = _ang_rate_delayed_raw % pos_offset_body;
-			const Vector3f vel_offset_earth = _R_to_earth * vel_offset_body;
-			_gps_sample_delayed.vel -= vel_offset_earth;
+
+			// fuse GPS measurements
+			if (_gps_speed_valid) {
+				// correct velocity for offset relative to IMU
+				const Vector3f vel_offset_body = _ang_rate_delayed_raw % pos_offset_body;
+				const Vector3f vel_offset_earth = _R_to_earth * vel_offset_body;
+				_gps_sample_delayed.vel -= vel_offset_earth;
+
+				// calculate velocity innovation
+				_last_vel_obs = _gps_sample_delayed.vel;
+				_gps_vel_innov = _state.vel - _last_vel_obs;
+
+				// set observation variance
+				Vector3f gps_vel_obs_var;
+				gps_vel_obs_var.setAll(sq(fmaxf(_gps_sample_delayed.sacc, _params.gps_vel_noise)));
+				gps_vel_obs_var(2) = sq(1.5f) * gps_vel_obs_var(2); // assume vertical errors are 1.5 x horizontal errors
+
+				// set horizontal and vertical innvovation consistency check gate size
+				Vector2f gps_vel_innov_gates;
+				gps_vel_innov_gates.setAll(fmaxf(_params.gps_vel_innov_gate, 1.0f));
+
+				fuseHorizontalVelocity(_gps_vel_innov, gps_vel_innov_gates,gps_vel_obs_var, _gps_vel_innov_var, _gps_vel_test_ratio);
+				fuseVerticalVelocity(_gps_vel_innov, gps_vel_innov_gates, gps_vel_obs_var, _gps_vel_innov_var, _gps_vel_test_ratio);
+			}
 
 			// correct position and height for offset relative to IMU
 			const Vector3f pos_offset_earth = _R_to_earth * pos_offset_body;
 			_gps_sample_delayed.pos -= pos_offset_earth.xy();
 			_gps_sample_delayed.hgt += pos_offset_earth(2);
 
+			// set observation variance for horizontal position
 			const float lower_limit = fmaxf(_params.gps_pos_noise, 0.01f);
-
+			Vector3f gps_pos_obs_var;
 			if (isOtherSourceOfHorizontalAidingThan(_control_status.flags.gps)) {
 				// if we are using other sources of aiding, then relax the upper observation
 				// noise limit which prevents bad GPS perturbing the position estimate
@@ -673,22 +689,16 @@ void Ekf::controlGpsFusion()
 				gps_pos_obs_var(0) = gps_pos_obs_var(1) = sq(math::constrain(_gps_sample_delayed.hacc, lower_limit, upper_limit));
 			}
 
-			gps_vel_obs_var.setAll(sq(fmaxf(_gps_sample_delayed.sacc, _params.gps_vel_noise)));
-			gps_vel_obs_var(2) = sq(1.5f) * gps_vel_obs_var(2);
 
-			// calculate innovations
-			_last_vel_obs = _gps_sample_delayed.vel;
-			_gps_vel_innov = _state.vel - _last_vel_obs;
+			// calculate innovations for horizontal position
 			_gps_pos_innov.xy() = Vector2f(_state.pos) - _gps_sample_delayed.pos;
 
-			// set innovation gate size
+			// set horizontal position innovation gate size only
+			Vector2f gps_pos_innov_gates; // [horizontal vertical]
 			gps_pos_innov_gates(0) = fmaxf(_params.gps_pos_innov_gate, 1.0f);
-			gps_vel_innov_gates(0) = gps_vel_innov_gates(1) = fmaxf(_params.gps_vel_innov_gate, 1.0f);
 
-			// fuse GPS measurement
-			fuseHorizontalVelocity(_gps_vel_innov, gps_vel_innov_gates,gps_vel_obs_var, _gps_vel_innov_var, _gps_vel_test_ratio);
-			fuseVerticalVelocity(_gps_vel_innov, gps_vel_innov_gates, gps_vel_obs_var, _gps_vel_innov_var, _gps_vel_test_ratio);
 			fuseHorizontalPosition(_gps_pos_innov, gps_pos_innov_gates, gps_pos_obs_var, _gps_pos_innov_var, _gps_pos_test_ratio);
+
 		}
 
 	} else if (_control_status.flags.gps && (_imu_sample_delayed.time_us - _gps_sample_delayed.time_us > (uint64_t)10e6)) {
