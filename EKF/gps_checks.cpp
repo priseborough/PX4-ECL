@@ -131,11 +131,13 @@ bool Ekf::gps_is_good(const gps_message &gps)
 	_gps_check_fail_status.flags.vacc = (gps.epv > _params.req_vacc);
 
 	// Check the reported speed accuracy
-	_gps_check_fail_status.flags.sacc = (gps.sacc > _params.req_sacc);
+	_gps_check_fail_status.flags.sacc = gps.vel_ned_valid && (gps.sacc > _params.req_sacc);
 
 	// check if GPS quality is degraded
 	_gps_error_norm = fmaxf((gps.eph / _params.req_hacc), (gps.epv / _params.req_vacc));
-	_gps_error_norm = fmaxf(_gps_error_norm , (gps.sacc / _params.req_sacc));
+	if (gps.vel_ned_valid) {
+		_gps_error_norm = fmaxf(_gps_error_norm , (gps.sacc / _params.req_sacc));
+	}
 
 	// Calculate time lapsed since last update, limit to prevent numerical errors and calculate a lowpass filter coefficient
 	constexpr float filt_time_const = 10.0f;

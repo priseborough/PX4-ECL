@@ -646,7 +646,7 @@ void Ekf::controlGpsFusion()
 			const Vector3f pos_offset_body = _params.gps_pos_body - _params.imu_pos_body;
 
 			// fuse GPS measurements
-			if (_gps_speed_valid) {
+			if (_gps_sample_delayed.vel_ned_valid) {
 				// correct velocity for offset relative to IMU
 				const Vector3f vel_offset_body = _ang_rate_delayed_raw % pos_offset_body;
 				const Vector3f vel_offset_earth = _R_to_earth * vel_offset_body;
@@ -661,7 +661,7 @@ void Ekf::controlGpsFusion()
 				gps_vel_obs_var.setAll(sq(fmaxf(_gps_sample_delayed.sacc, _params.gps_vel_noise)));
 				gps_vel_obs_var(2) = sq(1.5f) * gps_vel_obs_var(2); // assume vertical errors are 1.5 x horizontal errors
 
-				// set horizontal and vertical innvovation consistency check gate size
+				// set horizontal and vertical innovation consistency check gate size
 				Vector2f gps_vel_innov_gates;
 				gps_vel_innov_gates.setAll(fmaxf(_params.gps_vel_innov_gate, 1.0f));
 

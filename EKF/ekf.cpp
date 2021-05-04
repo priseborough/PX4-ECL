@@ -73,7 +73,6 @@ void Ekf::reset()
 
 	_imu_updated = false;
 	_NED_origin_initialised = false;
-	_gps_speed_valid = false;
 
 	_filter_initialised = false;
 	_terrain_initialised = false;

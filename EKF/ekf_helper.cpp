@@ -64,6 +64,9 @@ void Ekf::resetVelocity()
 }
 
 void Ekf::resetVelocityToGps() {
+	if (!_gps_sample_delayed.vel_ned_valid) {
+		return;
+	}
 	ECL_INFO_TIMESTAMPED("reset velocity to GPS");
 	resetVelocityTo(_gps_sample_delayed.vel);
 	P.uncorrelateCovarianceSetVariance<3>(4, sq(_gps_sample_delayed.sacc));
@@ -292,7 +295,7 @@ void Ekf::resetHeight()
 	}
 
 	// reset the vertical velocity state
-	if (_control_status.flags.gps && !_gps_hgt_intermittent) {
+	if (_control_status.flags.gps && gps_newest.vel_ned_valid && !_gps_hgt_intermittent) {
 		// If we are using GPS, then use it to reset the vertical velocity
 		resetVerticalVelocityTo(gps_newest.vel(2));
 
@@ -365,6 +368,10 @@ void Ekf::alignOutputFilter()
 // It is used to align the yaw angle after launch or takeoff for fixed wing vehicle only.
 bool Ekf::realignYawGPS()
 {
+	if (!_gps_sample_delayed.vel_ned_valid) {
+		return false;
+	}
+
 	const float gpsSpeed = sqrtf(sq(_gps_sample_delayed.vel(0)) + sq(_gps_sample_delayed.vel(1)));
 
 	// Need at least 5 m/s of GPS horizontal speed and

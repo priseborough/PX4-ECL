@@ -199,7 +199,7 @@ void EstimatorInterface::setGpsData(const gps_message &gps)
 
 		gps_sample_new.vel = gps.vel_ned;
 
-		_gps_speed_valid = gps.vel_ned_valid;
+		gps_sample_new.vel_ned_valid = gps.vel_ned_valid;
 		gps_sample_new.sacc = gps.sacc;
 		gps_sample_new.hacc = gps.eph;
 		gps_sample_new.vacc = gps.epv;

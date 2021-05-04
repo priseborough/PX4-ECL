@@ -99,14 +99,15 @@ struct imuSample {
 };
 
 struct gpsSample {
-	Vector2f    pos;	///< NE earth frame gps horizontal position measurement (m)
-	float       hgt;	///< gps height measurement (m)
-	Vector3f    vel;	///< NED earth frame gps velocity measurement (m/sec)
-	float	    yaw;	///< yaw angle. NaN if not set (used for dual antenna GPS), (rad, [-PI, PI])
-	float	    hacc;	///< 1-std horizontal position error (m)
-	float	    vacc;	///< 1-std vertical position error (m)
-	float       sacc;	///< 1-std speed error (m/sec)
-	uint64_t    time_us;	///< timestamp of the measurement (uSec)
+	Vector2f    pos;		///< NE earth frame gps horizontal position measurement (m)
+	float       hgt;		///< gps height measurement (m)
+	Vector3f    vel;		///< NED earth frame gps velocity measurement (m/sec)
+	float	    yaw;		///< yaw angle. NaN if not set (used for dual antenna GPS), (rad, [-PI, PI])
+	float	    hacc;		///< 1-std horizontal position error (m)
+	float	    vacc;		///< 1-std vertical position error (m)
+	float       sacc;		///< 1-std speed error (m/sec), set to 0 if unknown
+	uint64_t    time_us;		///< timestamp of the measurement (uSec)
+	bool	    vel_ned_valid;	///< true if the NED earth frame gps velocity measurement is valid
 };
 
 struct magSample {
