@@ -1788,6 +1788,7 @@ void Ekf::runYawEKFGSF()
 
 	// basic sanity check on GPS velocity data
 	if (_gps_data_ready && _gps_sample_delayed.vacc > FLT_EPSILON &&
+	    _gps_sample_delayed.vel_ned_valid &&
 	    ISFINITE(_gps_sample_delayed.vel(0)) && ISFINITE(_gps_sample_delayed.vel(1))) {
 		yawEstimator.setVelocity(_gps_sample_delayed.vel.xy(), _gps_sample_delayed.vacc);
 	}
