@@ -108,6 +108,7 @@ struct gpsSample {
 	float       sacc;		///< 1-std speed error (m/sec), set to 0 if unknown
 	uint64_t    time_us;		///< timestamp of the measurement (uSec)
 	bool	    vel_ned_valid;	///< true if the NED earth frame gps velocity measurement is valid
+	bool	    reset;		///< true if the EKF should reset to the observation instead of fusing it
 };
 
 struct magSample {

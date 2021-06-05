@@ -553,6 +553,9 @@ void Ekf::controlGpsFusion()
 					&& isTimedOut(_time_last_hor_vel_fuse, _params.reset_timeout_max)
 					&& isTimedOut(_time_last_of_fuse, _params.reset_timeout_max);
 
+			// action an externally demanded reset to GPS
+			do_vel_pos_reset |= _gps_sample_delayed.reset;
+
 			// We haven't had an absolute position fix for a longer time so need to do something
 			do_vel_pos_reset = do_vel_pos_reset || isTimedOut(_time_last_hor_pos_fuse, 2 * _params.reset_timeout_max);
 

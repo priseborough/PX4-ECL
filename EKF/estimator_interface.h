@@ -170,7 +170,7 @@ public:
 
 	void setMagData(const magSample &mag_sample);
 
-	void setGpsData(const gps_message &gps);
+	void setGpsData(const gps_message &gps, bool reset=false);
 
 	void setBaroData(const baroSample &baro_sample);
 

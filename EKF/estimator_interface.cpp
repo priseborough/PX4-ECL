@@ -168,7 +168,7 @@ void EstimatorInterface::setMagData(const magSample &mag_sample)
 	}
 }
 
-void EstimatorInterface::setGpsData(const gps_message &gps)
+void EstimatorInterface::setGpsData(const gps_message &gps, bool reset)
 {
 	if (!_initialised || _gps_buffer_fail) {
 		return;
@@ -212,6 +212,8 @@ void EstimatorInterface::setGpsData(const gps_message &gps)
 		} else {
 			_gps_yaw_offset = 0.0f;
 		}
+
+		gps_sample_new.reset = reset;
 
 		// Only calculate the relative position if the WGS-84 location of the origin is set
 		if (collect_gps(gps)) {
